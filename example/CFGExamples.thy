@@ -254,4 +254,90 @@ apply (rule impI)
 apply(sep_cancel)+
 done
 
+(* Example with a Jump and a Next block*)
+
+definition c4 where
+"c4 = build_cfg [ Stack (PUSH_N [1]), Stack (PUSH_N [5]), Pc JUMP, Pc JUMPDEST, Stack (PUSH_N [2]), Pc JUMPDEST, Misc STOP]"
+
+schematic_goal c4_val:
+ " c4  = ?p"
+ by(simp add: c4_def  word_rcat_simps Let_def evm_fun_simps dropWhile.simps  cfg_simps next_i_def concat_map_def
+  split:if_splits nat.splits option.splits )
+
+lemma
+notes if_split[ split del ]
+shows
+ " triple_cfg c4
+(continuing ** stack_height 0 ** program_counter (0,0) ** gas_pred 1000)
+(the (cfg_blocks c4 0))
+(stack 0 (word_rcat [1::byte]) ** stack_height (Suc (Suc 0)) ** stack 1 (word_rcat [2::byte]))
+"
+apply(unfold c4_val)
+apply (simp)
+apply(rule cfg_jump[where rest="stack 0 (word_rcat [1])"])
+ apply(simp)
+ apply(simp)
+ apply(simp)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_push_n[where rest=emp]])
+ apply(rule impI)
+ apply(sep_cancel)+
+ apply(simp add: gas_pred_def)
+ apply(rule conjI;clarsimp)
+ apply(simp)
+ apply(simp)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_push_n[where rest="stack 0 (word_rcat [1])" 
+      and h="Suc 0"]])
+ apply(rule impI)
+ apply(sep_cancel)+
+ apply(simp add: program_counter_def)
+apply(rule seq_jump)
+ apply(rule impI)
+apply(sep_cancel)+
+apply(simp add: stack_def)
+apply(rule conjI)
+apply(simp)
+apply(simp)
+apply(rule cfg_next)
+ apply(simp)
+ apply(simp)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_jumpdest[where g="(1000 - Gverylow - Gverylow - Gmid)" and h="Suc 0" and rest="stack 0 (word_rcat [1])"]])
+ apply(rule impI)
+ apply(sep_cancel)+
+apply(simp add: stack_def)
+apply(rule conjI)
+apply(simp)
+apply(simp)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_push_n[where h="Suc 0" and rest="stack 0 (word_rcat [1])" and g="(1000 - Gverylow - Gverylow - Gmid - Gjumpdest)"]])
+ apply(rule impI)
+ apply(sep_cancel)+
+ apply(simp add: program_counter_def)
+apply(rule seq_weaken_post[OF seq_next])
+apply(rule impI)
+apply(sep_cancel)
+apply(rule cfg_no)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_jumpdest[where h="Suc (Suc 0)" and 
+    rest=" stack (Suc 0) (word_rcat [2]) \<and>* stack 0 (word_rcat [1]) "]])
+ apply(rule impI)
+ apply(sep_cancel)+
+ apply(simp add: stack_def)
+ apply(rule conjI, simp)
+ apply(simp)
+apply(rule seq_inst)
+apply(rule inst_strengthen_pre[OF inst_stop[where h="Suc (Suc 0)" and 
+    rest=" stack (Suc 0) (word_rcat [2]) \<and>* stack 0 (word_rcat [1]) 
+    \<and>* gas_pred (1000 - Gverylow - Gverylow - Gmid - Gjumpdest - Gverylow - Gjumpdest)"]])
+ apply(rule impI)
+ apply(sep_cancel)+
+ apply(simp add: program_counter_def)
+ apply(simp)
+apply(rule seq_strengthen_pre[OF seq_no])
+apply (rule impI)
+apply(sep_cancel)+
+done
+
 end
