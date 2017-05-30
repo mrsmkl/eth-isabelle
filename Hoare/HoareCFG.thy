@@ -114,13 +114,29 @@ inductive triple_cfg :: "cfg \<Rightarrow> pred \<Rightarrow> vertex \<Rightarro
   \<Longrightarrow> triple_cfg cfg pre (n, insts, Jumpi) post"
 | cfg_false_pre: "triple_cfg cfg \<langle>False\<rangle> i post"
 
+definition wf_program_cfg :: "position program \<Rightarrow> bool" where
+"wf_program_cfg p =
+	(\<forall>m n i. program_advance_pc p (m,n) i = (m,n + i))"
+
+definition wf_cctx_cfg :: "position constant_ctx \<Rightarrow> bool" where
+"wf_cctx_cfg c = wf_program_cfg (cctx_program c)"
+
+lemma advance_pc_change_cfg :
+" wf_program_cfg p \<Longrightarrow>
+	(\<forall>a n. program_advance_pc p
+			a (inst_size n) \<noteq> a) "
+apply(simp add: wf_program_cfg_def)
+done
+
 definition triple_inst_sem :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Rightarrow> bool" where
 "triple_inst_sem pre inst post ==
-    \<forall> co_ctx presult rest stopper. no_assertion co_ctx \<longrightarrow>
+    \<forall> co_ctx presult rest stopper.
+				no_assertion co_ctx \<longrightarrow>
+				wf_cctx_cfg co_ctx \<longrightarrow>
        (pre ** code {inst} ** rest) (instruction_result_as_set co_ctx presult) \<longrightarrow>
        ((post ** code {inst} ** rest) (instruction_result_as_set co_ctx (program_sem stopper co_ctx 1 presult)))"
 
-lemma strengthen_pre_inst_sem:
+lemma inst_strengthen_pre_sem:
   assumes  "triple_inst_sem P c Q"
   and      "(\<forall> s. R s \<longrightarrow> P s)"
   shows    " triple_inst_sem R c Q"
