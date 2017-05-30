@@ -154,4 +154,56 @@ lemma inst_strengthen_pre_sem:
   apply simp
 done
 
+lemma inst_false_pre_sem:
+  "triple_inst_sem \<langle>False\<rangle> i q"
+apply(simp add: triple_inst_sem_def sep_basic_simps pure_def)
+done
+
+lemma inst_stop_sem:
+"triple_inst_sem
+        (\<langle> h \<le> 1024 \<rangle> \<and>*
+         continuing \<and>*
+         program_counter k \<and>* stack_height h \<and>* rest)
+        (k, Misc STOP)
+        (stack_height h \<and>*
+         not_continuing \<and>*
+         program_counter k \<and>* action (ContractReturn []) \<and>* rest)"
+sorry
+
+lemma inst_push_sem:
+"triple_inst_sem
+        (\<langle> h \<le> 1023 \<and> 0 < length lst \<and> length lst \<le> 32 \<rangle> \<and>*
+         continuing \<and>*
+         program_counter (n, m) \<and>*
+         stack_height h \<and>* gas_pred g \<and>* rest)
+        ((n, m), Stack (PUSH_N lst))
+        (continuing \<and>*
+         program_counter (n, m + 1 + int (length lst)) \<and>*
+         stack_height (Suc h) \<and>*
+         gas_pred (g - Gverylow) \<and>*
+         stack h (word_rcat lst) \<and>* rest)"
+sorry
+
+lemma inst_jumpdest_sem:
+"triple_inst_sem
+        (\<langle> h \<le> 1024 \<rangle> \<and>*
+         continuing \<and>*
+         program_counter (n, m) \<and>*
+         stack_height h \<and>* gas_pred g \<and>* rest)
+        (uu, Pc JUMPDEST)
+        (continuing \<and>*
+         program_counter (n, m + 1) \<and>*
+         stack_height h \<and>* gas_pred (g - Gjumpdest) \<and>* rest)"
+sorry
+
+lemma inst_soundness:
+  "triple_inst p i q \<Longrightarrow> triple_inst_sem p i q"
+  apply(induction rule:triple_inst.induct)
+      apply(simp only: inst_push_sem)
+     apply(simp only: inst_stop_sem)
+    apply(simp only: inst_jumpdest_sem)
+   apply(simp add: inst_strengthen_pre_sem)
+  apply(simp add: inst_false_pre_sem)
+done
+
 end
