@@ -34,14 +34,32 @@ done
 lemma lst_longer [dest!]:
   "length l = Suc h \<Longrightarrow> \<exists> a t. l = a # t \<and> length t = h"
 	by (simp add: length_Suc_conv)
-(*
+
 lemma advance_pc_advance [simp]:
   " vctx_next_instruction x1 co_ctx = Some i \<Longrightarrow>
     inst_size i = 1 \<Longrightarrow>
+		(\<And>a. program_pc_as_int (cctx_program co_ctx) (program_advance_pc (cctx_program co_ctx) a 1) = (program_pc_as_int (cctx_program co_ctx) a) + 1) \<Longrightarrow>
+    program_pc_as_int (cctx_program co_ctx) (vctx_pc (vctx_advance_pc co_ctx x1)) = (program_pc_as_int (cctx_program co_ctx) (vctx_pc x1)) + 1"
+apply(simp add: vctx_advance_pc_def)
+done
+
+lemma advance_pc_advance_int_int [simp]:
+  " vctx_next_instruction x1 co_ctx = Some i \<Longrightarrow>
+    inst_size i = 1 \<Longrightarrow>
+		(\<And>m n. program_advance_pc (cctx_program co_ctx) (m,n) 1 = (m,n + 1)) \<Longrightarrow>
+		(vctx_pc x1) = (m,n) \<Longrightarrow>
+		vctx_pc (vctx_advance_pc co_ctx x1) = (m, n + 1)"
+apply(simp add: vctx_advance_pc_def)
+done
+
+lemma advance_pc_advance_int [simp]:
+  " vctx_next_instruction x1 co_ctx = Some i \<Longrightarrow>
+    inst_size i = 1 \<Longrightarrow>
+		(\<And>a. program_advance_pc (cctx_program co_ctx) a 1 = a + 1) \<Longrightarrow>
     vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
 apply(simp add: vctx_advance_pc_def)
 done
-*)
+
 lemma advance_pc_no_gas_change [simp] :
   "vctx_gas (vctx_advance_pc co_ctx x1) = vctx_gas x1"
 apply(simp add: vctx_advance_pc_def)
@@ -181,13 +199,19 @@ apply(rename_tac l)
 apply(case_tac l; simp)
 apply(split if_splits; auto)
 done
-(*
+
 lemma advance_pc_different [simp] :
-  "vctx_pc (vctx_advance_pc co_ctx x1) \<noteq> vctx_pc x1"
+  " (\<And>a n. program_advance_pc (cctx_program co_ctx) 
+			a (inst_size n) \<noteq> a) \<Longrightarrow>
+	vctx_pc (vctx_advance_pc co_ctx x1) \<noteq> vctx_pc x1"
 apply(simp add: vctx_advance_pc_def)
-apply(case_tac "vctx_next_instruction x1 co_ctx"; auto)
+apply(case_tac "vctx_next_instruction x1 co_ctx")
+	apply(simp add: vctx_next_instruction_def)
+	apply(split option.splits; simp)
+apply(split option.splits)
+apply(rule conjI; simp)
 done
-*)
+
 lemma stack_elm_not_program [simp]:
  "StackElm x2 \<notin> program_as_set (cctx_program co_ctx)"
 apply(simp add: program_as_set_def)
@@ -345,11 +369,19 @@ lemma advance_pc_keeps_stack [simp] :
   "(vctx_stack (vctx_advance_pc co_ctx v)) = vctx_stack v"
 apply(simp add: vctx_advance_pc_def)
 done
-(*
+
 lemma advance_pc_change [simp] :
-  "vctx_pc x1 \<noteq> vctx_pc (vctx_advance_pc co_ctx x1)"
-	by (metis advance_pc_different)
-*)
+  "(\<And>a n. a \<noteq> program_advance_pc (cctx_program co_ctx) 
+			a (inst_size n)) \<Longrightarrow>
+vctx_pc x1 \<noteq> vctx_pc (vctx_advance_pc co_ctx x1)"
+apply(simp add: vctx_advance_pc_def)
+apply(case_tac "vctx_next_instruction x1 co_ctx")
+	apply(simp add: vctx_next_instruction_def)
+	apply(split option.splits; simp)
+apply(split option.splits)
+apply(rule conjI; simp)
+done
+
 lemma caller_sep:
   "(caller c ** rest) s =
    (CallerElm c \<in> s \<and> rest (s - {CallerElm c}))"
@@ -410,22 +442,40 @@ lemma inst_size_pop [simp] :
   "inst_size (Stack POP) = 1"
 apply(simp add: inst_code.simps inst_size_def stack_inst_code.simps)
 done
-(*
-lemma pop_advance [simp] :
-  "program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Stack POP) \<Longrightarrow>
+
+lemma pop_advance_int [simp] :
+  "(\<And>a. program_advance_pc (cctx_program co_ctx) a 1 = a + 1) \<Longrightarrow>
+	program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Stack POP) \<Longrightarrow>
    vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
 apply(simp add: vctx_advance_pc_def vctx_next_instruction_def)
 done
 
-
-lemma advance_pc_as_set [simp] :
-  "program_content (cctx_program co_ctx) (vctx_pc v) = Some (Stack POP) \<Longrightarrow>
-   (contexts_as_set (vctx_advance_pc co_ctx v) co_ctx) =
-   (contexts_as_set v co_ctx) \<union> {PcElm (vctx_pc v + 1)} - {PcElm (vctx_pc v)}"
-apply(auto simp add: contexts_as_set_def variable_ctx_as_set_def stack_as_set_def
-      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def)
+lemma pop_advance_int_int [simp] :
+  "(\<And>m n. program_advance_pc (cctx_program co_ctx) (m,n) 1 = (m,n + 1)) \<Longrightarrow>
+	(vctx_pc x1 = (m,n)) \<Longrightarrow>
+	program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Stack POP) \<Longrightarrow>
+  vctx_pc (vctx_advance_pc co_ctx x1) = (m, n + 1)"
+apply(simp add: vctx_advance_pc_def vctx_next_instruction_def)
 done
-*)
+
+lemma advance_pc_as_set_int [simp] :
+  "(\<And>a. program_advance_pc (cctx_program co_ctx) a 1 = a + 1) \<Longrightarrow>
+	 program_content (cctx_program co_ctx) (vctx_pc v) = Some (Stack POP) \<Longrightarrow>
+   (contexts_as_set (vctx_advance_pc co_ctx v) co_ctx) =
+   (contexts_as_set v co_ctx) \<union> {PcElm (vctx_pc v + (1::int))} - {PcElm (vctx_pc v)}"
+apply(auto simp add: contexts_as_set_def variable_ctx_as_set_def stack_as_set_def
+      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def )
+done
+
+lemma advance_pc_as_set_int_int [simp] :
+  "(\<And>m n. program_advance_pc (cctx_program co_ctx) (m,n) 1 = (m,n + 1)) \<Longrightarrow>
+	vctx_pc v = (m,n) \<Longrightarrow> 
+	program_content (cctx_program co_ctx) (vctx_pc v) = Some (Stack POP) \<Longrightarrow>
+   (contexts_as_set (vctx_advance_pc co_ctx v) co_ctx) =
+   (contexts_as_set v co_ctx) \<union> {PcElm (m,n+1::int)} - {PcElm (vctx_pc v)}"
+apply(auto simp add: contexts_as_set_def variable_ctx_as_set_def stack_as_set_def
+      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def )
+done
 
 lemma gas_change_as_set [simp] :
   "(contexts_as_set (x1\<lparr>vctx_gas := new_gas\<rparr>) co_ctx) 
@@ -490,13 +540,22 @@ lemma continue_not_failed [simp] :
 apply(simp add: failed_for_reasons_def)
 done
 
-(* lemma info_single_advance [simp] :
-  "program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info i) \<Longrightarrow>
+lemma info_single_advance_int [simp] :
+  "(\<And>a. program_advance_pc (cctx_program co_ctx) a 1 = a + 1) \<Longrightarrow>
+program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info i) \<Longrightarrow>
    vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
 apply(simp add: vctx_advance_pc_def vctx_next_instruction_def inst_size_def
       inst_code.simps)
 done
- *)
+
+lemma info_single_advance_int_int [simp] :
+  "(\<And>m n. program_advance_pc (cctx_program co_ctx) (m,n) 1 = (m,n + 1)) \<Longrightarrow>
+	vctx_pc x1 = (m,n) \<Longrightarrow>
+	program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info i) \<Longrightarrow>
+   vctx_pc (vctx_advance_pc co_ctx x1) = (m,n+ 1)"
+apply(simp add: vctx_advance_pc_def vctx_next_instruction_def inst_size_def
+      inst_code.simps)
+done
 
 lemma caller_not_stack [simp]:
   "CallerElm c \<notin> stack_as_set s"
@@ -949,9 +1008,10 @@ lemma log_num_advance [simp] :
 apply(simp add: contexts_as_set_def)
 done
 
-(*
-lemma balance0 [simp] :
-"length list = h \<Longrightarrow>
+
+lemma balance0_int [simp] :
+"(\<And>a i. program_advance_pc (cctx_program co_ctx) a i = a + i) \<Longrightarrow>
+length list = h \<Longrightarrow>
 vctx_stack x1 = a # list \<Longrightarrow>
 vctx_gas x1 = g \<Longrightarrow>
 program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info BALANCE) \<Longrightarrow>
@@ -960,7 +1020,7 @@ program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info BALANCE) \<Longr
              {BlockNumberElm (block_number (vctx_block x1))} -
              {StackHeightElm (Suc h)} -
              {StackElm (h, b)} -
-             {PcElm (vctx_pc x1 + 1)} -
+             {PcElm (vctx_pc x1 + (1::int))} -
              {BalanceElm (ucast a, b)} -
              {GasElm (g - 400)} -
              {ContinuingElm True} -
@@ -978,7 +1038,38 @@ apply(auto)
  apply(rename_tac elm; case_tac elm; auto simp add: instruction_result_as_set_def stack_as_set_def balance_as_set_def)
 apply(rename_tac elm; case_tac elm; auto simp add: instruction_result_as_set_def stack_as_set_def balance_as_set_def)
 done
-*)
+
+lemma balance0_int_int [simp] :
+"(\<And>m n i. program_advance_pc (cctx_program co_ctx) (m,n) i = (m,n + i)) \<Longrightarrow>
+vctx_pc x1 = (m,n) \<Longrightarrow>
+length list = h \<Longrightarrow>
+vctx_stack x1 = a # list \<Longrightarrow>
+vctx_gas x1 = g \<Longrightarrow>
+program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Info BALANCE) \<Longrightarrow>
+(instruction_result_as_set co_ctx
+              (InstructionContinue (vctx_advance_pc co_ctx x1\<lparr>vctx_stack := b # list, vctx_gas := g - 400\<rparr>)) -
+             {BlockNumberElm (block_number (vctx_block x1))} -
+             {StackHeightElm (Suc h)} -
+             {StackElm (h, b)} -
+             {PcElm (m,n + 1)} -
+             {BalanceElm (ucast a, b)} -
+             {GasElm (g - 400)} -
+             {ContinuingElm True} -
+             {CodeElm (vctx_pc x1, Info BALANCE)})
+=
+(instruction_result_as_set co_ctx (InstructionContinue x1) - {BlockNumberElm (block_number (vctx_block x1))} -
+             {StackHeightElm (Suc h)} -
+             {StackElm (h, a)} -
+             {PcElm (vctx_pc x1)} -
+             {BalanceElm (ucast a, b)} -
+             {GasElm g} -
+             {ContinuingElm True} -
+             {CodeElm (vctx_pc x1, Info BALANCE)})"
+apply(auto)
+ apply(rename_tac elm; case_tac elm; auto simp add: instruction_result_as_set_def stack_as_set_def balance_as_set_def)
+apply(rename_tac elm; case_tac elm; auto simp add: instruction_result_as_set_def stack_as_set_def balance_as_set_def)
+done
+
 lemma ext_program_size_elm_not_stack [simp] :
 "ExtProgramSizeElm ab \<notin> stack_as_set (1 # ta)"
 apply(simp add: stack_as_set_def)
@@ -1616,7 +1707,6 @@ apply(simp)
 apply (metis diff_Suc_1 lessI unat_eq_zero unat_minus_one zero_order(3))
 done
 
-
 lemma memory_range_sep :
 "  \<forall> begin_word len_word rest s.
        unat (len_word :: w256) = length input \<longrightarrow>
@@ -1628,6 +1718,7 @@ lemma memory_range_sep :
  apply(rule allI)+
  apply(rule iffI)
   apply(rule conjI)
+	apply(clarify)
 sorry
 
 lemma sep_memory_range :
@@ -1985,14 +2076,22 @@ done
 context
  includes simp_for_triples
  begin
-(*
-lemma advance_pc_call [simp] :
-      "program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Misc CALL) \<Longrightarrow>
+
+lemma advance_pc_call_int [simp] :
+      " (\<And>a i. program_advance_pc (cctx_program co_ctx) a i = a + i) \<Longrightarrow>
+			 program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Misc CALL) \<Longrightarrow>
        k = vctx_pc x1 \<Longrightarrow>
        vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
 apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
 done
-*)
+
+lemma advance_pc_call_int_int [simp] :
+      "(\<And>(m::int) n i. program_advance_pc (cctx_program co_ctx) (m,n) i = (m,n + i)) \<Longrightarrow>			 program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Misc CALL) \<Longrightarrow>
+       vctx_pc x1 = (m,n) \<Longrightarrow>
+       vctx_pc (vctx_advance_pc co_ctx x1) = (m,n + 1)"
+apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
+done
+
 
 lemma memory_range_elms_not_continuing [simp] :
   "(memory_range_elms in_begin input
@@ -2778,13 +2877,23 @@ done
 context
  includes simp_for_triples
 begin
-(*
-lemma swap_advance [simp] :
- "program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Swap n) \<Longrightarrow>
+
+
+lemma swap_advance_int [simp] :
+ "(\<And>a i. program_advance_pc (cctx_program co_ctx) a i = a + i) \<Longrightarrow>
+	program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Swap n) \<Longrightarrow>
   vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
 apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
 done
-*)
+
+lemma swap_advance_int_int [simp] :
+ "(\<And>m n i. program_advance_pc (cctx_program co_ctx) (m,n) i = (m,n + i)) \<Longrightarrow>
+	vctx_pc x1 = (m,nn) \<Longrightarrow>
+	program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Swap n) \<Longrightarrow>
+  vctx_pc (vctx_advance_pc co_ctx x1) = (m,nn + 1)"
+apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
+done
+
 lemma minus_one_bigger [simp] :
   "h > 1 \<Longrightarrow>
    h - Suc (Suc n) \<noteq> h - Suc 0"
@@ -3044,16 +3153,27 @@ end
 context
  includes simp_for_triples
 begin
-(*
-lemma vctx_pc_log_advance [simp] :
-  "program_content (cctx_program co_ctx) k = Some (Log LOGx) \<Longrightarrow>
+
+lemma vctx_pc_log_advance_int [simp] :
+  "(\<And>a i. program_advance_pc (cctx_program co_ctx) a i = a + i) \<Longrightarrow>
+	 program_content (cctx_program co_ctx) k = Some (Log LOGx) \<Longrightarrow>
    vctx_pc v = k \<Longrightarrow>
    vctx_pc
      (vctx_advance_pc co_ctx v) =
    vctx_pc v + 1"
 apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
 done
-*)
+
+lemma vctx_pc_log_advance_int_int [simp] :
+  "(\<And>m n i. program_advance_pc (cctx_program co_ctx) (m,n) i = (m,n + i)) \<Longrightarrow>
+	 program_content (cctx_program co_ctx) (m,n) = Some (Log LOGx) \<Longrightarrow>
+   vctx_pc v = (m,n) \<Longrightarrow>
+   vctx_pc
+     (vctx_advance_pc co_ctx v) =
+   (m,n + 1)"
+apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
+done
+
 lemma memory_range_elms_in_x_minus_lognum [simp] :
    "memory_range_elms in_begin data \<subseteq> X - {LogNumElm n} =
    (memory_range_elms in_begin data \<subseteq> X)"
