@@ -1,7 +1,6 @@
 theory "HoareCFG"
 
 imports "HoareTripleForInstructions"
-"../attic/Apply_Trace_Cmd"
 
 begin
 type_synonym position = "int * int"
@@ -25,9 +24,9 @@ inductive triple_inst :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Right
                        rest
                       )"
 | inst_stop : "triple_inst 
-          (\<langle> h \<le> 1024 \<rangle> ** continuing ** program_counter (n,m) ** stack_height h ** rest)
+          (\<langle> h \<le> 1024 \<rangle> \<and>* \<langle> 0 \<le> g \<rangle> ** continuing ** program_counter (n,m) ** stack_height h ** gas_pred g ** rest)
           ((n,m), Misc STOP)
-          (stack_height h ** not_continuing ** program_counter (n,m) ** action (ContractReturn []) ** rest )"
+          (stack_height h ** not_continuing ** program_counter (n,m) ** action (ContractReturn []) ** gas_pred g ** rest )"
 | inst_jumpdest : "triple_inst (\<langle> h \<le> 1024 \<rangle> **
                        continuing ** 
                        program_counter (n,m) **
@@ -224,61 +223,59 @@ lemmas simp_for_triples =
  general_dup_def  
 
 
-lemma simp_set:
-"(insert (ContinuingElm False)
-          (insert (ContractActionElm (ContractReturn []))
-            (contexts_as_set x32 co_ctx)) -
-         {CodeElm ((n, m), Misc STOP)} -
-         {ContinuingElm False} -
-         {ContractActionElm (ContractReturn [])}) = 
-        (insert (ContinuingElm True) (contexts_as_set x32 co_ctx) -
-         {CodeElm ((n, m), Misc STOP)} -
-         {ContinuingElm True})"
-apply auto
+lemma extract_data:
+"(resta \<and>*
+  rest \<and>*
+  gas_pred g \<and>*
+  stack_height h \<and>*
+  program_counter (n, m) \<and>*
+  \<langle> 0 \<le> g \<rangle> \<and>* code {((n, m), Misc STOP)} \<and>* \<langle> h \<le> 1024 \<rangle>) 
+(contexts_as_set x1 co_ctx)
+= 
+((GasElm g \<in> (contexts_as_set x1 co_ctx)) \<and>
+ (PcElm (n,m)\<in> (contexts_as_set x1 co_ctx) - {GasElm g}) \<and>
+(StackHeightElm h \<in> (contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)})\<and>
+(CodeElm ((n,m), Misc STOP) \<in> (contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)} 
+- {StackHeightElm h})\<and>
+ 0 \<le> g  \<and>
+h \<le> 1024 \<and>
+(resta \<and>*
+  rest ) 
+((contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)} - {StackHeightElm h} - {CodeElm ((n,m), Misc STOP)}))
+"
+apply(rule iffI)
+ defer
+ apply(simp add: remove_true)
+ apply(sep_select 3;simp only:sep_fun_simps;simp)
+ apply(sep_select 4;simp only:sep_fun_simps;simp)
+ apply(sep_select 3;simp only:sep_fun_simps;simp)
+ apply(sep_select 2;simp)
+apply(simp add: sep_conj_commute[where P="rest"])
+apply(simp add: sep_conj_commute[where P=resta])
+apply(simp only: sep_conj_assoc)
+apply(simp only: gas_pred_sep)
+apply(simp only: sep_conj_commute[where P="stack_height h"])
+apply(simp only: sep_conj_assoc)
+apply(simp only: program_counter_sep)
+apply(simp add: sep_conj_commute[where Q="stack_height h"])
 done
 
-lemma pc_simp:
-"((continuing \<and>*
-         stack_height h \<and>* program_counter (n, m) \<and>* \<langle> h \<le> 1024 \<rangle> \<and>* rest) \<and>*
-        resta)
-        (insert (ContinuingElm True) (contexts_as_set x1 co_ctx) -
-         {CodeElm ((n, m), Misc STOP)}) \<Longrightarrow>
-vctx_pc x1 = (n, m) \<and>
- ((continuing \<and>*
-         stack_height h  \<and>* \<langle> h \<le> 1024 \<rangle> \<and>* rest) \<and>* resta)
-        (insert (ContinuingElm True) (contexts_as_set x1 co_ctx) -
-         {CodeElm ((n, m), Misc STOP)} - {PcElm (n, m)})"
-sorry
 
-lemma stack_height_extract:
-"((continuing \<and>*
-         stack_height h \<and>* program_counter (n, m) \<and>* \<langle> h \<le> 1024 \<rangle> \<and>* rest) \<and>*
-        resta)
-        (insert (ContinuingElm True) (contexts_as_set x1 co_ctx) -
-         {CodeElm ((n, m), Misc STOP)}) \<Longrightarrow>
-length (vctx_stack x1) = h \<and>
-((continuing \<and>*
-         program_counter (n, m) \<and>* \<langle> h \<le> 1024 \<rangle> \<and>* rest) \<and>*
-        resta)
-        (insert (ContinuingElm True) (contexts_as_set x1 co_ctx) -
-         {CodeElm ((n, m), Misc STOP)} - {StackHeightElm h})"
-sorry
-
-find_theorems name:sep name:commute
 lemma inst_stop_sem:
 "triple_inst_sem
-        (\<langle> h \<le> 1024 \<rangle> \<and>*
+        (\<langle> h \<le> 1024 \<rangle> \<and>* \<langle> 0 \<le> g \<rangle> \<and>*
          continuing \<and>*
-         program_counter (n,m) \<and>* stack_height h \<and>* rest)
+         program_counter (n,m) \<and>* stack_height h \<and>* gas_pred g \<and>* rest)
         ((n,m), Misc STOP)
         (stack_height h \<and>*
          not_continuing \<and>*
-         program_counter (n,m) \<and>* action (ContractReturn []) \<and>* rest)"
-apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps)
+         program_counter (n,m) \<and>* action (ContractReturn []) \<and>* gas_pred g \<and>* rest)"
+apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps sep_conj_ac)
 apply(clarify)
 apply(simp split: instruction_result.splits)
  apply(simp add: vctx_next_instruction_def)
  apply(split option.splits)
+ apply(simp add: extract_data)
  apply(clarsimp)
  apply(rule conjI)
   apply(clarsimp split: option.splits)
@@ -294,117 +291,40 @@ apply(simp split: instruction_result.splits)
      apply(simp add: instruction_sem_simps stop_def)
     apply(rule conjI)
      apply(simp add: instruction_sem_simps stop_def)
-    apply(simp add: instruction_sem_simps stop_def gas_value_simps)
-    apply(simp add: sep_conj_ac sep_fun_simps)
-    apply(sep_select 4)
+    apply(simp add: instruction_sem_simps stop_def gas_value_simps inst_numbers_simps)
+    apply(simp add: sep_fun_simps)
+    apply(sep_select 3;simp only:sep_fun_simps;simp)+
+   apply(rule conjI)
+    apply(rule allI;clarify)
+    apply(simp add: instruction_sem_simps stop_def inst_numbers_simps)
+   apply(rule conjI)
     apply(simp only: sep_fun_simps)
-    apply(simp add:simp_set pure_def emp_def sep_basic_simps)
-   apply(rule conjI)
-    apply(simp add: instruction_sem_simps stop_def pc_simp)
-   apply(rule conjI)
-    apply(simp add: instruction_sem_simps stop_def pc_simp)
-   apply(simp add: instruction_sem_simps stop_def pc_simp gas_value_simps)
+    apply(simp add: instruction_sem_simps stop_def )
+   apply(simp add: instruction_sem_simps stop_def  gas_value_simps)
    apply(clarsimp)
-   apply(simp add: sep_conj_ac sep_fun_simps)
-   apply(sep_select 4)
-   apply(simp only: sep_fun_simps)
-   apply(simp add:simp_set pure_def emp_def sep_basic_simps)
+   apply(simp add: sep_fun_simps)
+   apply(sep_select 3;simp only:sep_fun_simps;simp)+
   apply(rule impI)
   apply(rule impI)
   apply(simp split:option.splits; clarify)
    apply(simp add: check_resources_def inst_numbers_simps)
-   apply(simp add: stack_height_extract)  
-   apply(fastforce elim: sep_conjE)
-  apply(simp add: instruction_sem_simps stop_def pc_simp gas_value_simps inst_numbers_simps)
-  apply(simp add: stack_height_extract)
-  apply(fastforce elim: sep_conjE)
+  apply(simp add: check_resources_def inst_numbers_simps)
  apply(rule impI)
  apply(rule conjI)
   apply(rule impI)
   apply(rule impI)
-  apply(simp split:option.splits;clarify)
-   apply(simp add: instruction_sem_simps stop_def pc_simp inst_numbers_simps gas_value_simps)
-  apply(simp add: instruction_sem_simps stop_def pc_simp inst_numbers_simps gas_value_simps)
+  apply(simp split:option.splits; clarify)
+   apply(simp add: check_resources_def inst_numbers_simps)
+  apply(simp add: check_resources_def inst_numbers_simps)
  apply(rule impI)
  apply(rule impI)
- apply(simp split:option.splits;clarify)
-  
-(*
- apply(simp add: sep_pc_sep) (*see lemma above*)
- apply(simp split: option.splits)
- apply(rule conjI)
-  apply(rule impI)
+ apply(simp split:option.splits; clarify)
+ apply(simp add: instruction_sem_simps stop_def  gas_value_simps)
+ apply(simp add: check_resources_def inst_numbers_simps)
+ apply(subgoal_tac "meter_gas (Misc STOP) x1 co_ctx = 0")
   apply(simp)
-  apply(rule allI)
-  apply(rule conjI)
-   apply(rule impI)
-   apply(rule conjI)
-    apply(rule impI)
-    apply(rule impI)
-    apply(rule conjI)
-     apply(rule allI)
-     apply(rule impI)
-     apply(rule conjI)
-      apply(simp only: code_not_continuing) (*does not apply correctly =( *)
-      apply(simp add: code_elm_c)
-      apply(drule code_not_continuing)
-      apply(drule code_elm_c)
-      apply_trace(simp del:code_element_means)(*When fixed, will solve subgoal 1*)
-      defer
-     apply(simp add: instruction_sem_def)
-     apply(simp split: inst.splits)
-     apply(simp add: stop_def new_memory_consumption.simps)
-     apply(simp only: subtract_gas.simps)
-     apply(simp)
-    apply(rule conjI)
-     apply(rule impI)
-     apply(simp add: instruction_sem_def)
-     apply(simp split: inst.splits)
-     apply(simp add: stop_def new_memory_consumption.simps)
-     apply(simp only: subtract_gas.simps)
-     apply(simp)
-    apply(rule allI)
-    apply(rule allI)
-    apply(rule impI)
-    apply(rule conjI)
-     apply(simp add: instruction_sem_def)
-     apply(simp split: inst.splits)
-     apply(simp add: stop_def new_memory_consumption.simps)
-     apply(simp only: subtract_gas.simps)
-     apply(simp add: code_elm_simp)
-    apply(simp add: instruction_sem_def)
-    apply(simp split: inst.splits)
-    apply(simp add: stop_def new_memory_consumption.simps)
-    apply(simp only: subtract_gas.simps)
-    apply(simp add: sep_not_continuing_sep)
-    apply(sep_select 3)
-    apply(simp only: program_counter_sep)
-    apply(simp)
-    apply(rule conjI)
-     apply(simp only: pc_not_change)
-    apply(sep_select 4)
-    apply(simp only: action_sep)
-    apply(simp)
-    apply(subgoal_tac "(insert (ContinuingElm False)
-          (insert (ContractActionElm x31)
-            (contexts_as_set x32 co_ctx)) -
-         {CodeElm ((a, b), Misc STOP) |a b. (a, b) = k} -
-         {ContinuingElm False} -
-         {PcElm k} -
-         {ContractActionElm x31}) = (insert (ContinuingElm True) (contexts_as_set x1 co_ctx) -
-         {CodeElm ((a, b), Misc STOP) |a b. (a, b) = k} -
-         {ContinuingElm True} -
-         {PcElm k})")
-     apply(simp)
-    apply(simp add: simp_set)
-   apply(rule impI)
-   apply(rule impI)
-   apply(rule conjI)
-    apply(simp add: set_simp)
-     *)
-sorry
-
-find_theorems CodeElm -name:state_element -name: HOL
+ apply(simp add: instruction_sem_simps gas_value_simps)
+done
 
 lemma inst_push_sem:
 "triple_inst_sem
