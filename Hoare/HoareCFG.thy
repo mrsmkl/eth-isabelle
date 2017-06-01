@@ -27,14 +27,14 @@ inductive triple_inst :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Right
           (\<langle> h \<le> 1024 \<and> 0 \<le> g \<rangle> ** continuing ** program_counter (n,m) ** stack_height h ** gas_pred g ** rest)
           ((n,m), Misc STOP)
           (stack_height h ** not_continuing ** program_counter (n,m) ** action (ContractReturn []) ** gas_pred g ** rest )"
-| inst_jumpdest : "triple_inst (\<langle> h \<le> 1024 \<rangle> **
+| inst_jumpdest : "triple_inst (\<langle> h \<le> 1024 \<and> Gjumpdest \<le> g \<rangle> **
                        continuing ** 
                        program_counter (n,m) **
                        stack_height h **
                        gas_pred g **
                        rest
                       )
-                      (_, Pc JUMPDEST)
+                      ((n,m), Pc JUMPDEST)
                       (continuing **
                        program_counter (n,m + 1) **
                        stack_height h **
@@ -288,15 +288,26 @@ done
 
 lemma inst_jumpdest_sem:
 "triple_inst_sem
-        (\<langle> h \<le> 1024 \<rangle> \<and>*
+        (\<langle> h \<le> 1024 \<and> Gjumpdest \<le> g \<rangle> \<and>*
          continuing \<and>*
          program_counter (n, m) \<and>*
          stack_height h \<and>* gas_pred g \<and>* rest)
-        (uu, Pc JUMPDEST)
+        ((n,m), Pc JUMPDEST)
         (continuing \<and>*
          program_counter (n, m + 1) \<and>*
          stack_height h \<and>* gas_pred (g - Gjumpdest) \<and>* rest)"
-sorry
+ apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps sep_conj_ac)
+ apply(clarify)
+ apply(simp split: instruction_result.splits)
+ apply(simp add: vctx_next_instruction_def)
+ apply(simp add: sep_conj_commute[where P="rest"] sep_conj_assoc)
+ apply(simp add: instruction_sem_simps inst_numbers_simps)
+ apply(simp add: advance_simps inst_size_simps)
+ apply(clarify)
+ apply(rename_tac rest0 vctx)
+ apply (erule_tac P="(rest0 \<and>* rest)" in back_subst)
+ apply(auto simp add: as_set_simps)
+done
 
 lemma inst_soundness:
   "triple_inst p i q \<Longrightarrow> triple_inst_sem p i q"
