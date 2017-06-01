@@ -24,7 +24,7 @@ inductive triple_inst :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Right
                        rest
                       )"
 | inst_stop : "triple_inst 
-          (\<langle> h \<le> 1024 \<rangle> \<and>* \<langle> 0 \<le> g \<rangle> ** continuing ** program_counter (n,m) ** stack_height h ** gas_pred g ** rest)
+          (\<langle> h \<le> 1024 \<and> 0 \<le> g \<rangle> ** continuing ** program_counter (n,m) ** stack_height h ** gas_pred g ** rest)
           ((n,m), Misc STOP)
           (stack_height h ** not_continuing ** program_counter (n,m) ** action (ContractReturn []) ** gas_pred g ** rest )"
 | inst_jumpdest : "triple_inst (\<langle> h \<le> 1024 \<rangle> **
@@ -233,67 +233,32 @@ lemmas simp_for_triples =
 
 lemma inst_stop_sem:
 "triple_inst_sem
-        (\<langle> h \<le> 1024 \<rangle> \<and>* \<langle> 0 \<le> g \<rangle> \<and>*
+        (\<langle> h \<le> 1024 \<and> 0 \<le> g \<rangle> \<and>*
          continuing \<and>*
          program_counter (n,m) \<and>* stack_height h \<and>* gas_pred g \<and>* rest)
         ((n,m), Misc STOP)
         (stack_height h \<and>*
          not_continuing \<and>*
          program_counter (n,m) \<and>* action (ContractReturn []) \<and>* gas_pred g \<and>* rest)"
-apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps sep_conj_ac)
-apply(clarify)
-apply(simp split: instruction_result.splits)
+ apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps sep_conj_ac)
+ apply(clarify)
+ apply(simp split: instruction_result.splits)
  apply(simp add: vctx_next_instruction_def)
  apply(split option.splits)
  apply(simp add: sep_conj_commute[where P="rest"] sep_conj_assoc)
- apply(clarsimp)
+ apply(clarify)
  apply(rule conjI)
-  apply(clarsimp split: option.splits)
- apply(rule allI)
- apply(rule conjI)
-  apply(rule impI)
-  apply(rule conjI)
-   apply(rule impI)
-   apply(rule impI)
-   apply(simp split: option.splits)
-    apply(clarify)
-    apply(rule conjI)
-     apply(simp add: instruction_sem_simps stop_def)
-    apply(rule conjI)
-     apply(simp add: instruction_sem_simps stop_def)
-    apply(simp add: instruction_sem_simps stop_def gas_value_simps inst_numbers_simps)
-    apply(simp add: sep_not_continuing_sep sep_action_sep del:sep_program_counter_sep)
-    apply(sep_select 3;simp only:sep_fun_simps;simp)
-   apply(rule conjI)
-    apply(rule allI;clarify)
-    apply(simp add: instruction_sem_simps stop_def inst_numbers_simps)
-   apply(rule conjI)
-    apply(simp only: sep_fun_simps)
-    apply(simp add: instruction_sem_simps stop_def )
-   apply(simp add: instruction_sem_simps stop_def  gas_value_simps)
-   apply(clarsimp)
-   apply(simp add: sep_not_continuing_sep sep_action_sep del:sep_program_counter_sep)
-   apply(sep_select 3;simp only:sep_fun_simps;simp)
-  apply(rule impI)
-  apply(rule impI)
-  apply(simp split:option.splits; clarify)
-   apply(simp add: check_resources_def inst_numbers_simps)
-  apply(simp add: check_resources_def inst_numbers_simps)
- apply(rule impI)
- apply(rule conjI)
-  apply(rule impI)
-  apply(rule impI)
-  apply(simp split:option.splits; clarify)
-   apply(simp add: check_resources_def inst_numbers_simps)
-  apply(simp add: check_resources_def inst_numbers_simps)
- apply(rule impI)
- apply(rule impI)
- apply(simp split:option.splits; clarify)
- apply(simp add: instruction_sem_simps stop_def  gas_value_simps)
- apply(simp add: check_resources_def inst_numbers_simps)
- apply(subgoal_tac "meter_gas (Misc STOP) x1 co_ctx = 0")
-  apply(simp)
- apply(simp add: instruction_sem_simps gas_value_simps)
+  apply(clarsimp split:option.splits)
+ apply(subgoal_tac "(case program_content (cctx_program co_ctx) (n, m) of
+               None \<Rightarrow> Some (Misc STOP) | Some i \<Rightarrow> Some i) =
+              Some (Misc STOP)")
+  apply(clarsimp)
+  apply(rule conjI; rule impI; rule conjI; clarsimp;
+  simp add: instruction_sem_simps stop_def gas_value_simps inst_numbers_simps)
+  apply(simp add: sep_not_continuing_sep sep_action_sep del:sep_program_counter_sep)
+  apply(sep_select 3; simp only:sep_fun_simps;simp)
+ apply(simp split: option.split)
+ apply(rule allI; rule impI; simp)
 done
 
 lemma inst_push_sem:
