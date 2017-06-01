@@ -8,7 +8,7 @@ type_synonym pred = "(position state_element set \<Rightarrow> bool)"
 
 (* To be completed *)
 inductive triple_inst :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Rightarrow> bool" where
-  inst_push_n : "triple_inst (\<langle> h \<le> 1023 \<and> length lst > 0 \<and> 32 \<ge> length lst\<rangle> **
+  inst_push_n : "triple_inst (\<langle> h \<le> 1023 \<and> length lst > 0 \<and> 32 \<ge> length lst \<and> Gverylow \<le> g \<rangle> **
                        continuing **
                        program_counter (n,m) **
                        stack_height h **
@@ -163,7 +163,8 @@ lemmas as_set_simps =
 balance_as_set_def contract_action_as_set_def annotation_failure_as_set
 contexts_as_set_def constant_ctx_as_set_def memory_as_set_def storage_as_set_def
 data_sent_as_set_def log_as_set_def stack_as_set_def instruction_result_as_set_def
-program_as_set_def
+program_as_set_def variable_ctx_as_set_def constant_ctx_as_set_def
+ext_program_as_set_def
 
 lemmas sep_tools_simps = 
 sep_emp emp_sep sep_true pure_sepD pure_sep sep_lc sep_three 
@@ -193,7 +194,10 @@ code_sep sep_code sep_sep_code sep_code_sep
 lemmas inst_numbers_simps =
 dup_inst_numbers_def storage_inst_numbers.simps stack_inst_numbers.simps 
 pc_inst_numbers.simps info_inst_numbers.simps inst_stack_numbers.simps 
-arith_inst_numbers.simps 
+arith_inst_numbers.simps
+
+lemmas inst_size_simps =
+inst_size_def inst_code.simps stack_inst_code.simps
 
 lemmas stack_nb_simps=
 stack_0_0_op_def stack_0_1_op_def stack_1_1_op_def
@@ -209,13 +213,18 @@ Gcreate_def Gnewaccount_def Gtransaction_def Gexpbyte_def
 Gsset_def Gsuicide_def Gbalance_def Gsload_def Gextcode_def
 
 lemmas instruction_sem_simps =
-instruction_sem_def
+instruction_sem_def constant_mark_def
 stack_0_0_op_def stack_0_1_op_def stack_1_1_op_def
 stack_2_1_op_def stack_3_1_op_def
-subtract_gas.simps meter_gas_def C_def Cmem_def
+subtract_gas.simps
+check_resources_def
+meter_gas_def C_def Cmem_def
 new_memory_consumption.simps thirdComponentOfC_def 
 vctx_next_instruction_default_def vctx_next_instruction_def
-check_resources_def
+
+lemmas advance_simps =
+vctx_advance_pc_def vctx_next_instruction_def
+wf_cctx_cfg_def wf_program_cfg_def
 
 lemmas simp_for_triples = 
   instruction_failure_result_def 
@@ -289,7 +298,7 @@ done
 
 lemma inst_push_sem:
 "triple_inst_sem
-        (\<langle> h \<le> 1023 \<and> 0 < length lst \<and> length lst \<le> 32 \<rangle> \<and>*
+        (\<langle> h \<le> 1023 \<and> 0 < length lst \<and> length lst \<le> 32 \<and> Gverylow \<le> g \<rangle> \<and>*
          continuing \<and>*
          program_counter (n, m) \<and>*
          stack_height h \<and>* gas_pred g \<and>* rest)
@@ -299,7 +308,18 @@ lemma inst_push_sem:
          stack_height (Suc h) \<and>*
          gas_pred (g - Gverylow) \<and>*
          stack h (word_rcat lst) \<and>* rest)"
-sorry
+ apply(simp add: triple_inst_sem_def program_sem.simps as_set_simps sep_conj_ac)
+ apply(clarify)
+ apply(simp split: instruction_result.splits)
+ apply(simp add: vctx_next_instruction_def)
+ apply(simp add: sep_conj_commute[where P="rest"] sep_conj_assoc)
+ apply(simp add: instruction_sem_simps inst_numbers_simps)
+ apply(simp add: advance_simps inst_size_simps)
+ apply(clarify)
+ apply(rename_tac rest0 vctx)
+ apply (erule_tac P="(rest0 \<and>* rest)" in back_subst)
+ apply(auto simp add: as_set_simps)
+done
 
 lemma inst_jumpdest_sem:
 "triple_inst_sem
