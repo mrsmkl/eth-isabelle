@@ -222,45 +222,6 @@ lemmas simp_for_triples =
  blockedInstructionContinue_def vctx_pop_stack_def 
  general_dup_def  
 
-
-lemma extract_data:
-"(resta \<and>*
-  rest \<and>*
-  gas_pred g \<and>*
-  stack_height h \<and>*
-  program_counter (n, m) \<and>*
-  \<langle> 0 \<le> g \<rangle> \<and>* code {((n, m), Misc STOP)} \<and>* \<langle> h \<le> 1024 \<rangle>) 
-(contexts_as_set x1 co_ctx)
-= 
-((GasElm g \<in> (contexts_as_set x1 co_ctx)) \<and>
- (PcElm (n,m)\<in> (contexts_as_set x1 co_ctx) - {GasElm g}) \<and>
-(StackHeightElm h \<in> (contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)})\<and>
-(CodeElm ((n,m), Misc STOP) \<in> (contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)} 
-- {StackHeightElm h})\<and>
- 0 \<le> g  \<and>
-h \<le> 1024 \<and>
-(resta \<and>*
-  rest ) 
-((contexts_as_set x1 co_ctx) - {GasElm g} - {PcElm (n,m)} - {StackHeightElm h} - {CodeElm ((n,m), Misc STOP)}))
-"
-apply(rule iffI)
- defer
- apply(simp add: remove_true)
- apply(sep_select 3;simp only:sep_fun_simps;simp)
- apply(sep_select 4;simp only:sep_fun_simps;simp)
- apply(sep_select 3;simp only:sep_fun_simps;simp)
- apply(sep_select 2;simp)
-apply(simp add: sep_conj_commute[where P="rest"])
-apply(simp add: sep_conj_commute[where P=resta])
-apply(simp only: sep_conj_assoc)
-apply(simp only: gas_pred_sep)
-apply(simp only: sep_conj_commute[where P="stack_height h"])
-apply(simp only: sep_conj_assoc)
-apply(simp only: program_counter_sep)
-apply(simp add: sep_conj_commute[where Q="stack_height h"])
-done
-
-
 lemma inst_stop_sem:
 "triple_inst_sem
         (\<langle> h \<le> 1024 \<rangle> \<and>* \<langle> 0 \<le> g \<rangle> \<and>*
@@ -275,7 +236,7 @@ apply(clarify)
 apply(simp split: instruction_result.splits)
  apply(simp add: vctx_next_instruction_def)
  apply(split option.splits)
- apply(simp add: extract_data)
+ apply(simp add: sep_conj_commute[where P="rest"] sep_conj_assoc)
  apply(clarsimp)
  apply(rule conjI)
   apply(clarsimp split: option.splits)
@@ -292,8 +253,8 @@ apply(simp split: instruction_result.splits)
     apply(rule conjI)
      apply(simp add: instruction_sem_simps stop_def)
     apply(simp add: instruction_sem_simps stop_def gas_value_simps inst_numbers_simps)
-    apply(simp add: sep_fun_simps)
-    apply(sep_select 3;simp only:sep_fun_simps;simp)+
+    apply(simp add: sep_not_continuing_sep sep_action_sep del:sep_program_counter_sep)
+    apply(sep_select 3;simp only:sep_fun_simps;simp)
    apply(rule conjI)
     apply(rule allI;clarify)
     apply(simp add: instruction_sem_simps stop_def inst_numbers_simps)
@@ -302,8 +263,8 @@ apply(simp split: instruction_result.splits)
     apply(simp add: instruction_sem_simps stop_def )
    apply(simp add: instruction_sem_simps stop_def  gas_value_simps)
    apply(clarsimp)
-   apply(simp add: sep_fun_simps)
-   apply(sep_select 3;simp only:sep_fun_simps;simp)+
+   apply(simp add: sep_not_continuing_sep sep_action_sep del:sep_program_counter_sep)
+   apply(sep_select 3;simp only:sep_fun_simps;simp)
   apply(rule impI)
   apply(rule impI)
   apply(simp split:option.splits; clarify)
