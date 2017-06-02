@@ -314,4 +314,106 @@ lemma inst_soundness:
   apply(simp add: inst_false_pre_sem)
 done
 
+definition triple_seq_sem :: "pred \<Rightarrow> pos_inst list \<Rightarrow> pred \<Rightarrow> bool" where
+"triple_seq_sem pre insts post ==
+    \<forall> co_ctx presult rest stopper.
+				no_assertion co_ctx \<longrightarrow>
+				wf_cctx_cfg co_ctx \<longrightarrow>
+       (pre ** code (set insts) ** rest) (instruction_result_as_set co_ctx presult) \<longrightarrow>
+       ((post ** code (set insts) ** rest) (instruction_result_as_set co_ctx (program_sem stopper co_ctx (length insts) presult)))"
+
+lemma inst_seq_eq:
+"triple_inst P i Q \<Longrightarrow> triple_seq_sem P [i] Q"
+apply(drule inst_soundness)
+apply(simp add: triple_inst_sem_def triple_seq_sem_def)
+apply(auto)
+done
+
+lemma seq_compose_soundness:
+  "triple_seq_sem P xs R \<Longrightarrow> triple_seq_sem R ys Q \<Longrightarrow> triple_seq_sem P (xs@ys) Q "
+  apply (simp (no_asm) add: triple_seq_sem_def)
+  apply clarsimp
+  apply (subst (asm) triple_seq_sem_def[where pre=P])
+  apply clarsimp
+  apply (rename_tac co_ctx presult rest stopper)
+  apply(drule_tac x = "co_ctx" in spec, simp)
+  apply(drule_tac x = "presult" in spec)
+  apply(drule_tac x = "code ((set ys) - (set xs)) ** rest" in spec; simp add: code_more)
+  apply (erule impE)
+   apply clarsimp
+   apply (rule conjI, blast)+
+   apply (erule_tac P="P \<and>* rest" in back_subst)
+   apply blast
+  apply(drule_tac x = stopper in spec)
+  apply clarsimp
+ apply (clarsimp simp add: triple_seq_sem_def)
+ apply(drule_tac x = "co_ctx" in spec, simp)
+ apply(drule_tac x = "program_sem stopper co_ctx (length xs) presult" in spec)
+ apply(drule_tac x = "code ((set xs) - (set ys)) ** rest" in spec)
+ apply clarsimp
+ apply (erule impE)
+  apply (rule conjI, blast)+
+  apply (erule_tac P="R \<and>* rest" in back_subst)
+  apply blast
+ apply(drule_tac x = stopper in spec)
+ apply clarsimp
+ apply (rename_tac k m)
+ apply (rule conjI)
+  apply (thin_tac "(_ \<and>* _) _")+
+  apply (thin_tac "_ \<subseteq> instruction_result_as_set co_ctx presult")
+  apply(subgoal_tac "{CodeElm ((a, b), i) |a b i. ((a, b), i) \<in> set xs \<or> ((a, b), i) \<in> set ys}
+={CodeElm ((a, b), i) |a b i. ((a, b), i) \<in> set xs \<and> ((a, b), i) \<notin> set ys}
+\<union> {CodeElm ((a, b), i) |a b i. ((a, b), i) \<in> set ys}
+")
+   apply(subgoal_tac "instruction_result_as_set co_ctx
+           (program_sem m co_ctx (length xs + length ys) presult) -
+          {CodeElm ((a, b), i) |a b i. ((a, b), i) \<in> set ys} \<subseteq>
+          instruction_result_as_set co_ctx
+           (program_sem m co_ctx (length xs + length ys) presult)")
+    apply(simp)
+   apply(blast)
+  apply(blast)
+ apply (erule back_subst[where P="Q \<and>* _"])
+ apply blast
+done
+
+lemma triple_seq_empty:
+"(\<And>s. pre s \<longrightarrow> post s) \<Longrightarrow> triple_seq_sem pre [] post"
+apply (simp add: triple_seq_sem_def program_sem.simps imp_sepL)
+apply(clarify)
+apply(drule allI)
+apply(simp add: imp_sepL)
+done
+
+lemma seq_strengthen_pre_sem:
+  assumes  "triple_seq_sem P c Q"
+  and      "(\<forall> s. R s \<longrightarrow> P s)"
+  shows    " triple_seq_sem R c Q"
+  using assms(1)
+  apply (simp add: triple_seq_sem_def)
+  apply(clarify)
+  apply(drule_tac x = co_ctx in spec)
+  apply(simp)
+  apply(drule_tac x = presult in spec)
+  apply(drule_tac x = rest in spec)
+  apply simp
+  apply (erule impE)
+   apply (sep_drule assms(2)[rule_format])
+   apply assumption
+  apply simp
+done
+
+lemma seq_triple_soundness:
+"triple_seq P xs Q \<Longrightarrow> triple_seq_sem P xs Q"
+ apply(induction rule: triple_seq.induct)
+    apply(drule inst_seq_eq)
+    apply(rename_tac pre x q xs post)
+    apply(subgoal_tac "x#xs = [x]@xs")
+     apply(simp only: seq_compose_soundness)
+    apply(simp)
+   apply(simp add: triple_seq_empty)
+  apply(simp add: seq_strengthen_pre_sem)
+ apply(simp add: triple_seq_sem_def)
+done
+
 end
