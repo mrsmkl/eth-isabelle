@@ -40,11 +40,11 @@ lemma Cextra_gt_0:
   by (simp add:  gas_simps)
 
 lemma Cgascap_gt_0:
-  "0 \<le> Cgascap a b c d e"
-  by (case_tac " b = 0" ; auto simp:L_def gas_simps)+
+  "0 \<le> Cgascap net a b c d e"
+by (auto simp:gas_simps L_def)
 
 lemma Ccall_gt_0:
-  " 0 < Ccall s0 s1 s2 recipient_empty
+  " 0 < Ccall net s0 s1 s2 recipient_empty
             remaining_gas blocknumber"
   unfolding Ccall_def
   using Cextra_gt_0 Cgascap_gt_0
@@ -58,8 +58,9 @@ lemma Csuicide_gt_0:
 
 lemma thirdComponentOfC_gt_0:
   "i \<noteq> Misc STOP \<Longrightarrow> i \<noteq> Misc RETURN \<Longrightarrow> (\<forall>v. i \<noteq> Unknown v) \<Longrightarrow>
-   i = Misc SUICIDE \<longrightarrow> Gsuicide blocknumber \<noteq> 0 \<Longrightarrow>
-  0 < thirdComponentOfC i s0 s1 s2 s3 recipient_empty orig_val new_val remaining_gas blocknumber"
+   i = Misc SUICIDE \<longrightarrow> Gsuicide net \<noteq> 0 \<Longrightarrow>
+   i = Misc DELEGATECALL \<longrightarrow> \<not> before_homestead net \<Longrightarrow>
+  0 < thirdComponentOfC i s0 s1 s2 s3 recipient_empty orig_val new_val remaining_gas net waht"
   unfolding thirdComponentOfC_def
   apply (case_tac i ; simp add: gas_simps )
             apply fastforce

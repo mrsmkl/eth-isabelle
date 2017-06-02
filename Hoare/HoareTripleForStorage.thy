@@ -8,11 +8,18 @@ context
  includes simp_for_triples
 begin
 
+value Rep_program_ext
+
 lemma storage_inst_advance [simp] :
-"program_content (cctx_program co_ctx) (vctx_pc x1) = Some (Storage m) \<Longrightarrow>
+"program_content (cctx_program co_ctx :: int program) (vctx_pc x1) = Some (Storage m) \<Longrightarrow>
  k = vctx_pc x1 \<Longrightarrow>
  vctx_pc (vctx_advance_pc co_ctx x1) = vctx_pc x1 + 1"
-apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps)
+apply(simp add: vctx_advance_pc_def inst_size_def inst_code.simps
+  program_advance_pc_def Record.iso_tuple_snd_def
+  Record.repr_def Record.tuple_iso_tuple_def
+   Record.iso_tuple_fst_def program_ext_Tuple_Iso_def
+  Rep_program_ext)
+
 done
 
 

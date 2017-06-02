@@ -65,16 +65,12 @@ where "block_info_as_set b ==
   TimestampElm (block_timestamp b), DifficultyElm (block_difficulty b),
   GaslimitElm (block_gaslimit b), GaspriceElm (block_gasprice b), BlockNumberElm (block_number b) }"
 
-<<<<<<< HEAD
-definition account_existence_as_set :: "(address \<Rightarrow> bool) \<Rightarrow> state_element set"
+definition account_existence_as_set :: "(address \<Rightarrow> bool) \<Rightarrow> 'a state_element set"
 where
 "account_existence_as_set f ==
   { AccountExistenceElm (a, e) | a e. f a = e }"
 
-definition contract_action_as_set :: "contract_action \<Rightarrow> state_element set"
-=======
 definition contract_action_as_set :: "contract_action \<Rightarrow> 'a state_element set"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
   where "contract_action_as_set act == { ContractActionElm act }"
 
 definition memory_as_set :: "memory \<Rightarrow> 'a state_element set"
@@ -220,11 +216,10 @@ definition logged :: "nat \<Rightarrow> log_entry \<Rightarrow> 'a state_element
 where
 "logged n l s == s = {LogElm (n, l)}"
 
-<<<<<<< HEAD
-definition account_existence :: "address \<Rightarrow> bool \<Rightarrow> state_element set \<Rightarrow> bool"
+definition account_existence :: "address \<Rightarrow> bool \<Rightarrow> 'a state_element set \<Rightarrow> bool"
 where
 "account_existence a b s == s = {AccountExistenceElm (a, b)}"
-=======
+
 lemmas sep_basic_simps =  sep_conj_def sep_set_conv
 
 method exI_pick_last_conj =
@@ -234,7 +229,6 @@ method exI_pick_last_conj =
 method solve_sep_iff uses simp =
   solves \<open>(rule iffI;  clarsimp simp add: sep_basic_simps simp),
   exI_pick_last_conj\<close>
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma sep_logged [simp]:
   "(a ** logged n l) s =
@@ -473,11 +467,7 @@ where
 
 
 definition triple ::
-<<<<<<< HEAD
- "network \<Rightarrow> failure_reason set \<Rightarrow> (state_element set \<Rightarrow> bool) \<Rightarrow> (int * inst) set \<Rightarrow> (state_element set \<Rightarrow> bool) \<Rightarrow> bool"
-=======
- "failure_reason set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> ('a * inst) set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> bool"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+ "network \<Rightarrow> failure_reason set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> ('a * inst) set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> bool"
 where
   "triple net allowed_failures pre insts post ==
     \<forall> co_ctx presult rest stopper. no_assertion co_ctx \<longrightarrow>
@@ -737,26 +727,7 @@ lemma code_union_s:
 	by (simp add: sup_commute)
 
 declare sep_sep_code [simp del]
-<<<<<<< HEAD
 
-lemma composition : "c = cL \<union> cR \<Longrightarrow> triple net allowed p cL q \<Longrightarrow> triple net allowed q cR r \<Longrightarrow> triple net allowed p c r"
-apply(auto simp add: triple_def code_middle shuffle3)
-apply(drule_tac x = "co_ctx" in spec; simp)
-apply(drule_tac x = "presult" in spec)
-apply(drule_tac x = co_ctx in spec; simp)
-apply(drule_tac x = "code (cR - cL) ** rest" in spec; simp add: code_more)
-apply(drule_tac x = stopper in spec)
-apply(erule exE)
-apply(auto)
-apply(drule_tac x = "program_sem stopper co_ctx k net presult" in spec)
-apply(drule_tac x = "code (cL - cR) ** rest" in spec)
-apply(simp add: code_more code_union_comm)
-apply(drule_tac x = stopper in spec)
-apply(erule exE)
-apply(rule_tac x = "k + ka" in exI; auto)
-done
-
-=======
 lemma set_compr_disj_union:
   "{T x| x.  P x \<or> Q x} = {T x | x. P x} \<union> { T x | x. Q x}"
   by blast
@@ -772,7 +743,7 @@ lemma set_compr_double_neg_subseteq:
   by blast
 
 lemma composition:
-  "c = cL \<union> cR \<Longrightarrow> triple F P cL Q \<Longrightarrow> triple F Q cR R \<Longrightarrow> triple F P c R"
+  "c = cL \<union> cR \<Longrightarrow> triple net F P cL Q \<Longrightarrow> triple net F Q cR R \<Longrightarrow> triple net F P c R"
   apply (simp (no_asm) add: triple_def)
   apply clarsimp
   apply (subst (asm) triple_def[where pre=P])
@@ -790,7 +761,7 @@ lemma composition:
   apply clarsimp
  apply (clarsimp simp add: triple_def)
   apply(drule_tac x = "co_ctx" in spec, simp)
-  apply(drule_tac x = "program_sem stopper co_ctx k presult" in spec)
+  apply(drule_tac x = "program_sem stopper co_ctx k net presult" in spec)
   apply(drule_tac x = "code (cL - cR) ** rest" in spec)
   apply (erule disjE)
    prefer 2
@@ -816,7 +787,6 @@ lemma composition:
   apply (erule back_subst[where P="R \<and>* _"])
   apply blast
  done
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 (** Frame **)
 
 lemma frame:
@@ -855,29 +825,13 @@ lemma weaken_post:
  done
 
 lemma strengthen_pre:
-<<<<<<< HEAD
-  "triple net F P c Q \<Longrightarrow> (\<forall>s. R s \<longrightarrow> P s) \<Longrightarrow> triple net F R c Q"
- apply (simp add: triple_def)
- apply(clarify)
- apply(drule_tac x = co_ctx in spec)
- apply(simp)
- apply(drule_tac x = presult in spec)
- apply(drule_tac x = rest in spec)
- apply(subgoal_tac "(rest ** P ** code c) (instruction_result_as_set co_ctx presult)")
-  apply(simp)
- apply(simp add: sep_def)
- apply(erule_tac exE)
- apply(rule_tac x = u in exI)
- apply(rule conjI)
-=======
-  assumes  "triple F P c Q"
+  assumes  "triple net F P c Q"
   and      "(\<forall>s. R s \<longrightarrow> P s)"
-  shows" triple F R c Q"
+  shows" triple net F R c Q"
   using assms(1)
   apply (simp add: triple_def)
   apply(clarify)
   apply(drule_tac x = co_ctx in spec)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
   apply(simp)
   apply(drule_tac x = presult in spec)
   apply(drule_tac x = rest in spec)
@@ -905,22 +859,13 @@ lemma sep_true [simp] :
  by (simp add: pure_def sep_conj_def emp_def)
 
 lemma move_pure0 :
-<<<<<<< HEAD
-  "triple net reasons (p ** \<langle> True \<rangle>) c q \<Longrightarrow> b \<Longrightarrow> triple net reasons p c q"
-=======
-  "triple reasons (p ** \<langle> True \<rangle>) c q \<Longrightarrow>  triple reasons p c q"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+  "triple net reasons (p ** \<langle> True \<rangle>) c q \<Longrightarrow> triple net reasons p c q"
 apply(simp add: triple_def remove_true)
 done
 
 lemma false_triple [simp] :
-<<<<<<< HEAD
   "triple net reasons (p ** \<langle> False \<rangle>) c q"
-apply(simp add: triple_def sep_def pure_def)
-=======
-  "triple reasons (p ** \<langle> False \<rangle>) c q"
 apply(simp add: triple_def sep_basic_simps pure_def)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 done
 
 lemma get_pure [simp]:
@@ -933,18 +878,12 @@ apply(auto simp add: move_pure0)
 apply(case_tac b; auto)
   done
 
-<<<<<<< HEAD
-lemma move_pureL [simp]: "triple net reaons (\<langle> b \<rangle> ** p) c q = (b \<longrightarrow> triple net reaons p c q)"
-apply(auto simp add: move_pure0)
-done
-=======
 lemma pure_sepD:
   "(\<langle>P\<rangle> ** R) s \<Longrightarrow> R s"
   by (simp add: pure_def emp_def sep_basic_simps)
-    
-lemma move_pureL [simp]: "triple reaons (\<langle> b \<rangle> ** p) c q = (b \<longrightarrow> triple reaons p c q)"
+
+lemma move_pureL [simp]: "triple net reaons (\<langle> b \<rangle> ** p) c q = (b \<longrightarrow> triple net reaons p c q)"
  by (metis move_pure sep_conj_commute)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma tmp01:
     "(rest ** code c ** p x) (case presult of InstructionContinue v \<Rightarrow> contexts_as_set v co_ctx | _ \<Rightarrow> {}) \<Longrightarrow>
@@ -953,6 +892,7 @@ lemma tmp01:
 
 declare sep_code_sep [simp del]
 
+(*
 lemma tmp0:
        "\<forall>co_ctx. no_assertion co_ctx \<longrightarrow>
                 (\<forall>presult rest.
@@ -973,6 +913,7 @@ apply(rule tmp01)
 apply(simp)
 done*)
     oops
+*)
 
 declare sep_code_sep [simp]
 
@@ -990,21 +931,9 @@ lemma sep_impL :
 
 
 lemma pre_imp:
-<<<<<<< HEAD
-  "\<forall> s. (b s \<longrightarrow> a s) \<Longrightarrow> triple net reasons a c q \<Longrightarrow> triple net reasons b c q"
-apply(auto simp add: triple_def)
-apply(drule_tac x = co_ctx in spec)
-apply(auto)
-apply(drule_tac x = presult in spec)
-apply(drule_tac x = rest in spec)
-apply(subgoal_tac "(rest ** a ** code c) (instruction_result_as_set co_ctx presult)")
- apply(simp)
-apply(simp add: sep_impL)
-done
-=======
  assumes "\<forall> s. (b s \<longrightarrow> a s)"
- and " triple reasons a c q"
-shows" triple reasons b c q"
+ and " triple net reasons a c q"
+shows" triple net reasons b c q"
 using assms(2)
   apply(auto simp add: triple_def)
   apply(drule_tac x = co_ctx in spec)
@@ -1019,7 +948,6 @@ using assms(2)
   apply (sep_rule sep_impL[OF assms(1), rule_format])
   apply(simp)
  done
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma preE1 [simp]:
 "((\<lambda>s. \<exists>x. p x s) ** rest) u

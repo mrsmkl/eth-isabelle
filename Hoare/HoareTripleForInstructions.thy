@@ -343,20 +343,12 @@ done
 lemma caller_sep:
   "(caller c ** rest) s =
    (CallerElm c \<in> s \<and> rest (s - {CallerElm c}))"
-<<<<<<< HEAD
-by(auto simp add: caller_def sep_def)
-=======
  by (solve_sep_iff simp: caller_def)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma sep_caller:
   "(rest ** caller c) s =
    (CallerElm c \<in> s \<and> rest (s - {CallerElm c}))"
-<<<<<<< HEAD
-by(auto simp add: caller_def sep_def)
-=======
  by (solve_sep_iff simp: caller_def)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma sep_caller_sep [simp]:
   "(a ** caller c ** rest) s =
@@ -374,11 +366,7 @@ qed
 lemma balance_sep :
   "(balance a b ** rest) s =
    (BalanceElm (a, b) \<in> s \<and> rest (s - {BalanceElm (a, b)}))"
-<<<<<<< HEAD
-by(auto simp add: balance_def sep_def)
-=======
  by (solve_sep_iff simp: balance_def)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma sep_balance :
   "(rest ** balance a b) s =
@@ -432,13 +420,10 @@ lemma advance_pc_as_set_int [simp] :
   "(\<And>a. program_advance_pc (cctx_program co_ctx) a 1 = a + 1) \<Longrightarrow>
 	 program_content (cctx_program co_ctx) (vctx_pc v) = Some (Stack POP) \<Longrightarrow>
    (contexts_as_set (vctx_advance_pc co_ctx v) co_ctx) =
-<<<<<<< HEAD
-   (contexts_as_set v co_ctx) \<union> {PcElm (vctx_pc v + 1)} - {PcElm (vctx_pc v)}"
-by(auto simp add: context_rw vctx_advance_pc_def vctx_next_instruction_def)
-=======
    (contexts_as_set v co_ctx) \<union> {PcElm (vctx_pc v + (1::int))} - {PcElm (vctx_pc v)}"
 apply(auto simp add: contexts_as_set_def variable_ctx_as_set_def stack_as_set_def
-      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def )
+      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def
+     account_existence_as_set_def )
 done
 
 lemma advance_pc_as_set_int_int [simp] :
@@ -448,9 +433,9 @@ lemma advance_pc_as_set_int_int [simp] :
    (contexts_as_set (vctx_advance_pc co_ctx v) co_ctx) =
    (contexts_as_set v co_ctx) \<union> {PcElm (m,n+1::int)} - {PcElm (vctx_pc v)}"
 apply(auto simp add: contexts_as_set_def variable_ctx_as_set_def stack_as_set_def
-      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def )
+      vctx_advance_pc_def vctx_next_instruction_def ext_program_as_set_def
+ account_existence_as_set_def)
 done
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma gas_change_as_set [simp] :
   "(contexts_as_set (x1\<lparr>vctx_gas := new_gas\<rparr>) co_ctx) 
@@ -1729,63 +1714,6 @@ lemma sep_memory_range :
 apply(simp add: memory_range_sep sep_conj_commute)
 sorry
 
-(*
-lemma sep_memory_range_sep :
-"unat (len_word :: w256) = length input \<Longrightarrow>
- (a ** memory_range begin_word input ** rest) s =
- ((memory_range_elms begin_word input \<subseteq> s) \<and> (a ** rest) (s - memory_range_elms begin_word input)) 
-"
-(is "?X \<Longrightarrow> ?L = ?R")
-proof -
-  assume ?X
-  then have "(memory_range begin_word input ** a ** rest) s = ?R"
-    by (simp only: memory_range_sep)
-  moreover have "?L = (memory_range begin_word input ** a ** rest) s"
-    by simp
-  ultimately show ?thesis
-    by simp
-qed
-<<<<<<< HEAD
-
-lemma sep_account_existence_sep :
-"(p ** account_existence a b ** q) s =
- ( AccountExistenceElm (a, b) \<in> s \<and> (p ** q) (s - {AccountExistenceElm (a, b)}))"
-apply(auto simp add: sep_def account_existence_def)
-done
-
-lemma sep_sep_account_existence_sep :
-"(n ** p ** account_existence a b ** q) s =
- ( AccountExistenceElm (a, b) \<in> s \<and> (n ** p ** q) (s - {AccountExistenceElm (a, b)}))"
-proof -
-  have "(n ** p ** account_existence a b ** q) s = ((n ** p) ** account_existence a b ** q) s"
-    by auto
-  moreover have "((n ** p) ** account_existence a b ** q) s =
-    ( AccountExistenceElm (a, b) \<in> s \<and> ((n ** p) ** q) (s - {AccountExistenceElm (a, b)}))"
-    by (rule "sep_account_existence_sep")
-  moreover have "( AccountExistenceElm (a, b) \<in> s \<and> ((n ** p) ** q) (s - {AccountExistenceElm (a, b)})) =
-     ( AccountExistenceElm (a, b) \<in> s \<and> (n ** p ** q) (s - {AccountExistenceElm (a, b)}))"
-    by auto
-  ultimately show ?thesis
-    by auto
-qed
-
-
-
-
-lemma account_existence_sep :
-"(account_existence a b ** q) s =
- ( AccountExistenceElm (a, b) \<in> s \<and> q (s - {AccountExistenceElm (a, b)}))"
-apply(auto simp add: sep_def account_existence_def)
-done
-
-lemma sep_account_existence :
-"(p ** account_existence a b ) s =
- ( AccountExistenceElm (a, b) \<in> s \<and> p (s - {AccountExistenceElm (a, b)}))"
-apply(auto simp add: sep_def account_existence_def)
-done
-=======
-*)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 
 lemma continuging_not_memory_range [simp] :
   "\<forall> in_begin. ContinuingElm False \<notin> memory_range_elms in_begin input"
@@ -1845,11 +1773,7 @@ declare meter_gas_def [simp del]
 declare misc_inst_numbers.simps [simp]
 
 definition triple_alt ::
-<<<<<<< HEAD
- "network \<Rightarrow> failure_reason set \<Rightarrow> (state_element set \<Rightarrow> bool) \<Rightarrow> (int * inst) set \<Rightarrow> (state_element set \<Rightarrow> bool) \<Rightarrow> bool"
-=======
- "failure_reason set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> ('a * inst) set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> bool"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+ "network \<Rightarrow> failure_reason set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> ('a * inst) set \<Rightarrow> ('a state_element set \<Rightarrow> bool) \<Rightarrow> bool"
 where
   "triple_alt net allowed_failures pre insts post ==
     \<forall> co_ctx presult rest stopper. no_assertion co_ctx \<longrightarrow>
@@ -1872,19 +1796,6 @@ declare stack_height_sep [simp del]
 declare stack_sep [simp del]
 declare balance_sep [simp del]
 declare program_counter_sep [simp del]
-
-(*
-     apply(simp only: stack_height_sep)
-     apply(simp only: stack_sep)
-     apply(clarify)
-     apply(simp only: balance_sep)
-     apply(simp only: program_counter_sep)
-     apply(simp only: gas_pred_sep)
-     apply(clarify)
-     apply(simp only: this_account_sep)
-     apply(simp only: balance_sep)
-     apply(simp only: not_continuing_sep)
-*)
 
 fun stack_topmost_elms :: "nat \<Rightarrow> w256 list \<Rightarrow> 'a state_element set"
 where
@@ -3308,15 +3219,12 @@ bundle sep_crunch = caller_sep [simp]
                     action_sep [simp]
                     sep_action [simp]
                     sep_action_sep [simp]
-<<<<<<< HEAD
-                    sep_stack_topmost [simp]
+(*                    sep_stack_topmost [simp]
                     sep_account_existence_sep [simp]
                     sep_account_existence [simp]
                     account_existence_sep [simp]
                     sep_sep_account_existence_sep [simp]
-=======
-(*                    sep_stack_topmost [simp] *)
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+                    sep_stack_topmost [simp] *)
 
 end
 
