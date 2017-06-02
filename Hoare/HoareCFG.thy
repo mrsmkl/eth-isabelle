@@ -44,35 +44,30 @@ inductive triple_inst :: "pred \<Rightarrow> pos_inst \<Rightarrow> pred \<Right
 | inst_strengthen_pre: "triple_inst p i q \<Longrightarrow> (\<And>s. r s \<longrightarrow> p s) \<Longrightarrow> triple_inst r i q"
 | inst_false_pre: "triple_inst \<langle>False\<rangle> i post"
 
-inductive triple_seq :: "pred \<Rightarrow> vertex \<Rightarrow> pred \<Rightarrow> bool" where
+inductive triple_seq :: "pred \<Rightarrow> pos_inst list \<Rightarrow> pred \<Rightarrow> bool" where
   seq_inst : "
   \<lbrakk> triple_inst pre x q;
-    triple_seq q (n, xs, ty) post \<rbrakk>
-  \<Longrightarrow> triple_seq pre (n, x#xs, ty) post"
-| seq_no : "triple_seq (p ** rest) (n, [], No) p"
-| seq_next : "triple_seq pre (n, [], Next) pre"
-| seq_jump : "(\<And>s. pre s \<longrightarrow> post s) \<Longrightarrow>
-   triple_seq pre (n, [], Jump) post"
-| seq_jumpi : "
-   (\<And>s. pre s \<longrightarrow> post s) \<Longrightarrow>
-   triple_seq pre (n, [], Jumpi) post"
-| seq_weaken_post : "triple_seq pre a post \<Longrightarrow> (\<And>s. post s \<longrightarrow> q s) \<Longrightarrow> triple_seq pre a q "
-| seq_strengthen_pre: "triple_seq p i q \<Longrightarrow> (\<And>s. r s \<longrightarrow> p s) \<Longrightarrow> triple_seq r i q" 
-| seq_false_pre: "triple_seq \<langle>False\<rangle> i post"
+    triple_seq q xs post \<rbrakk>
+  \<Longrightarrow> triple_seq pre (x#xs) post"
+| seq_empty: "(\<And>s. pre s \<longrightarrow> post s) \<Longrightarrow>
+  triple_seq pre [] post"
+| seq_strengthen_pre: "triple_seq p xs q \<Longrightarrow> (\<And>s. r s \<longrightarrow> p s) 
+  \<Longrightarrow> triple_seq r xs q"
+| seq_false_pre: "triple_seq \<langle>False\<rangle> xs post"
 
 inductive triple_cfg :: "cfg \<Rightarrow> pred \<Rightarrow> vertex \<Rightarrow> pred \<Rightarrow> bool" where
-  cfg_no : " triple_seq pre (n, insts, No) post
+  cfg_no : " triple_seq pre insts post
   \<Longrightarrow> triple_cfg cfg pre (n, insts, No) post"
 | cfg_next : " 
   \<lbrakk> cfg_edges cfg n = Some (i,_);
     cfg_blocks cfg i = Some block;
-    triple_seq pre (n, insts, Next) (program_counter (n,m) ** q);
+    triple_seq pre insts (program_counter (n,m) ** q);
     triple_cfg cfg (program_counter (i,0) ** q) block post\<rbrakk>
   \<Longrightarrow> triple_cfg cfg pre (n, insts, Next) post"
 | cfg_jump : " 
   \<lbrakk> cfg_edges cfg n = Some (i,_);
     cfg_blocks cfg i = Some block;
-    triple_seq pre (n, insts, Jump) 
+    triple_seq pre insts
       (\<langle> h \<le> 1023 \<rangle> **
        stack_height (Suc h) **
        stack h _ **
@@ -89,11 +84,11 @@ inductive triple_cfg :: "cfg \<Rightarrow> pred \<Rightarrow> vertex \<Rightarro
        rest
       ) block post\<rbrakk>
   \<Longrightarrow> triple_cfg cfg pre (n, insts, Jump) post"
-| cfg_jumpi : " 
+| cfg_jumpi : "
   \<lbrakk> cfg_edges cfg n = Some (i, Some j);
     cfg_blocks cfg i = Some blocki;
     cfg_blocks cfg j = Some blockj;
-    triple_seq pre (n, insts, Jumpi) 
+    triple_seq pre insts
         ((\<langle> h \<le> 1022  \<rangle> **
          stack_height (Suc (Suc h)) **
          stack (Suc h) d **
