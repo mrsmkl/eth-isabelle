@@ -218,11 +218,7 @@ where
 text {* As a reply, our contract might make a move, or report an annotation failure.*}
 
 inductive contract_turn ::
-<<<<<<< HEAD
-"network \<Rightarrow> (account_state * variable_ctx) \<Rightarrow> (account_state * environment_input) \<Rightarrow> bool"
-=======
-"(int account_state * int variable_ctx) \<Rightarrow> (int account_state * environment_input) \<Rightarrow> bool"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+"network \<Rightarrow> (int account_state * int variable_ctx) \<Rightarrow> (int account_state * environment_input) \<Rightarrow> bool"
 where
   contract_to_environment:
   "(* Under a constant environment built from the old account state, *)
@@ -255,15 +251,9 @@ The round is a binary relation over a single set.
 *}
 
 inductive one_round ::
-<<<<<<< HEAD
-"network \<Rightarrow> (account_state \<Rightarrow> bool) \<Rightarrow> 
-(account_state * environment_input) \<Rightarrow> 
-(account_state * environment_input) \<Rightarrow> bool"
-=======
-"(int account_state \<Rightarrow> bool) \<Rightarrow> 
+"network \<Rightarrow> (int account_state \<Rightarrow> bool) \<Rightarrow> 
 (int account_state * environment_input) \<Rightarrow> 
 (int account_state * environment_input) \<Rightarrow> bool"
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
 where
 round:
 "environment_turn I a b \<Longrightarrow> contract_turn net b c \<Longrightarrow> one_round net I a c"
@@ -383,15 +373,9 @@ reentrancy in Why ML.
 I have not justified the idea in Isabelle/HOL.
 *}
 
-<<<<<<< HEAD
-definition no_assertion_failure :: "network \<Rightarrow> (account_state \<Rightarrow> bool) \<Rightarrow> bool"
+definition no_assertion_failure :: "network \<Rightarrow> (int account_state \<Rightarrow> bool) \<Rightarrow> bool"
 where
-"no_assertion_failure net (I :: account_state \<Rightarrow> bool) \<equiv>
-=======
-definition no_assertion_failure :: "(int account_state \<Rightarrow> bool) \<Rightarrow> bool"
-where
-"no_assertion_failure (I :: int account_state \<Rightarrow> bool) \<equiv>
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
+"no_assertion_failure net (I :: int account_state \<Rightarrow> bool) \<equiv>
   (\<forall> addr str code bal ongoing killed callenv.
     I \<lparr> account_address = addr, account_storage = str, account_code = code,
        account_balance = bal,
@@ -460,26 +444,14 @@ All these requirements are captured by the transitive closure of @{term one_roun
 *}
 
 definition pre_post_conditions ::
-<<<<<<< HEAD
-"network \<Rightarrow> (account_state \<Rightarrow> bool) \<Rightarrow> (account_state \<Rightarrow> call_env \<Rightarrow> bool) \<Rightarrow>
- (account_state \<Rightarrow> call_env \<Rightarrow> (account_state \<times> environment_input) \<Rightarrow> bool) \<Rightarrow> bool"
-where
-"pre_post_conditions
-  net
-  (I :: account_state \<Rightarrow> bool)
-  (precondition :: account_state \<Rightarrow> call_env\<Rightarrow> bool)
-  (postcondition :: account_state \<Rightarrow> call_env \<Rightarrow>
-                    (account_state \<times> environment_input) \<Rightarrow> bool) \<equiv>
-=======
-"(int account_state \<Rightarrow> bool) \<Rightarrow> (int account_state \<Rightarrow> call_env \<Rightarrow> bool) \<Rightarrow>
+"network \<Rightarrow> (int account_state \<Rightarrow> bool) \<Rightarrow> (int account_state \<Rightarrow> call_env \<Rightarrow> bool) \<Rightarrow>
  (int account_state \<Rightarrow> call_env \<Rightarrow> (int account_state \<times> environment_input) \<Rightarrow> bool) \<Rightarrow> bool"
 where
-"pre_post_conditions
+"pre_post_conditions net
   (I :: int account_state \<Rightarrow> bool)
   (precondition :: int account_state \<Rightarrow> call_env\<Rightarrow> bool)
   (postcondition :: int account_state \<Rightarrow> call_env \<Rightarrow>
                     (int account_state \<times> environment_input) \<Rightarrow> bool) \<equiv>
->>>>>>> 0e432146249b6484af6fef62049fb85a9ca4dd4f
                     
   (* for any initial call and initial account state that satisfy *)
   (* the invariant and the precondition, *)
