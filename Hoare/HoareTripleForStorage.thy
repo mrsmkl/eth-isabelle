@@ -8,8 +8,6 @@ context
  includes simp_for_triples
 begin
 
-value Rep_program_ext
-
 lemma storage_inst_advance [simp] :
 "program_content (cctx_program co_ctx :: int program) (vctx_pc x1) = Some (Storage m) \<Longrightarrow>
  k = vctx_pc x1 \<Longrightarrow>
