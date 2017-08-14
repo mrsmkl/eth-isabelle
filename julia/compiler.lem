@@ -99,8 +99,12 @@ let rec compile_statement ctx st = match st with
    let (code, nctx) = compile_expr ctx expr in
    (code ++ genlist (fun _ -> N (Stack POP)) (nctx.ptr - ctx.ptr), <| nctx with ptr = ctx.ptr |>)
  | ForLoopInit init cond post body ->
-    compile_statement ctx (Block (init ++ [ForLoop cond post body]))
- 
+   compile_statement ctx (Block (init ++ [ForLoop cond post body]))
+ | Switch expr cases def ->
+   let (code, ctx) = compile_expr ctx expr in
+   let end_label = ctx.uniq in
+   let (code2, ctx) = compile_cases <| ctx with uniq = ctx.uniq + 1 |> cases def end_label in
+   (code ++ code2, ctx)
 end
 
 and compile_block ctx lst = match lst with
@@ -109,5 +113,19 @@ and compile_block ctx lst = match lst with
    let (code, ctx) = compile_statement ctx st in
    let (code2, ctx) = compile_block ctx lst in
    (code ++ code2, ctx)
+end
+
+and compile_cases ctx cases def end_label = match (cases, def) with
+ | ([], Nothing) -> ([N (Stack POP); Label end_label], <| ctx with ptr = ctx.ptr-1 |> )
+ | ([], Just def) ->
+   let (code, ctx) = compile_statement ctx def in
+   (code ++ [N (Stack POP); Label end_label], <| ctx with ptr = ctx.ptr-1 |>)
+ | ((lit, t, st) :: cases, _) ->
+   let ctx = <| ctx with ptr = ctx.ptr+1 |> in
+   let (code_lit, ctx) = compile_expr ctx (Literal lit t) in
+   let (code_case, ctx) = compile_statement <| ctx with ptr = ctx.ptr - 1 |> st in
+   let (code_rest, ctx) = compile_cases ctx cases def end_label in
+   let next_label = ctx.uniq in
+   (code_lit ++ [N (Dup 1); N (Arith inst_EQ)] ++ code_case ++ [PushLabel end_label; N (Pc JUMP); Label next_label] ++ code_rest, <| ctx with uniq = ctx.uniq + 1 |>)
 end
 
