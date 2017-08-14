@@ -92,5 +92,22 @@ let rec compile_statement ctx st = match st with
    (* remove variables from stack *)
    let (c2, ctx) = assign_vars ctx lst in
    (c1 ++ c2, ctx)
+ | Block lst ->
+   let (code, nctx) = compile_block ctx lst in
+   (code ++ genlist (fun _ -> N (Stack POP)) (nctx.ptr - ctx.ptr), <| nctx with ptr = ctx.ptr; vars = ctx.vars|>)
+ | Expression expr ->
+   let (code, nctx) = compile_expr ctx expr in
+   (code ++ genlist (fun _ -> N (Stack POP)) (nctx.ptr - ctx.ptr), <| nctx with ptr = ctx.ptr |>)
+ | ForLoopInit init cond post body ->
+    compile_statement ctx (Block (init ++ [ForLoop cond post body]))
+ 
+end
+
+and compile_block ctx lst = match lst with
+ | [] -> ([], ctx)
+ | st::lst ->
+   let (code, ctx) = compile_statement ctx st in
+   let (code2, ctx) = compile_block ctx lst in
+   (code ++ code2, ctx)
 end
 
