@@ -3,6 +3,8 @@
 *.bak
 *.out2
 julia/julia.ml
+julia/lexr.ml
+julia/compiler.ml
 julia/parsr.ml
 julia/parsr.mli
 julia/*.native

@@ -1,0 +1,96 @@
+
+open import Pervasives
+open import List
+open import Map
+open import String
+open import Evm
+open import Julia
+
+type a_inst =
+ | N of inst
+ | Label of nat
+ | PushLabel of nat
+
+type func_info = <|
+  func_label : nat;
+  func_returns : nat;
+|>
+
+(* context with local variables *)
+type context = <|
+   vars : map id nat;
+   ptr : nat;
+   funcs : map id func_info;
+   uniq : nat; (* generate labels *)
+|>
+
+let empty_context = <|
+  vars = Map.empty;
+  ptr = 0;
+  funcs = Map.empty;
+  uniq = 0;
+|>
+
+let rec add_vars lst ctx = match lst with
+ | [] -> ctx
+ | (id,_) :: lst -> add_vars lst <| ctx with ptr = ctx.ptr + 1; vars = Map.insert id ctx.ptr ctx.vars |>
+end
+
+let rec assign_vars ctx lst = match lst with
+ | [] -> ([], ctx)
+ | id :: lst ->
+   match Map.lookup id ctx.vars with
+   | Nothing -> ([], ctx)
+   | Just idx ->
+     let diff = ctx.ptr - idx in
+     let ctx = <| ctx with ptr = ctx.ptr - 1 |> in
+     let (c1, ctx) = assign_vars ctx lst in
+     (N (Swap (Word4.word4FromNat diff))::N (Stack POP)::c1, ctx)
+   end
+end
+
+val compile_expr : context -> expression -> list a_inst * context
+let rec compile_expr ctx e = match e with
+ | FunctionCall id args ->
+   match Map.lookup id ctx.funcs with
+   | Nothing -> ([], ctx)
+   | Just info ->
+     let (code, _) = compile_args ctx args in
+     let ret_label = ctx.uniq in
+     (code ++ [PushLabel ret_label; PushLabel info.func_label; N (Pc JUMP); Label ret_label], <| ctx with ptr = ctx.ptr + info.func_returns; uniq = ctx.uniq + 1 |>)
+   end
+ | Identifier id ->
+   match Map.lookup id ctx.vars with
+   | Nothing -> ([], ctx)
+   | Just idx ->
+     let diff = ctx.ptr - idx in
+     ([N (Dup (Word4.word4FromNat diff))], <| ctx with ptr = ctx.ptr + 1 |>)
+   end
+ | Literal FalseLiteral _ -> ([N (Stack (PUSH_N [0]))], <| ctx with ptr = ctx.ptr + 1 |>)
+ | Literal TrueLiteral _ -> ([N (Stack (PUSH_N [1]))], <| ctx with ptr = ctx.ptr + 1 |>)
+ | Literal (NumberLiteral n) _ ->
+    let bytes = word_rsplit256 (Word256.word256FromInteger n) in
+    ([N (Stack (PUSH_N bytes))], <| ctx with ptr = ctx.ptr + 1 |>)
+ | _ -> ([], ctx)
+end
+
+and compile_args ctx lst = match lst with
+ | [] -> ([], ctx)
+ | expr :: lst ->
+    let (e_code, ctx) = compile_expr ctx expr in
+    let (code, ctx) = compile_args <| ctx with ptr = ctx.ptr+1 |> lst in
+    (e_code ++ code, ctx)
+end
+
+let rec compile_statement ctx st = match st with
+ | EmptyVariableDeclaration lst -> (List.map (fun _ -> N (Stack (PUSH_N [0]))) lst, add_vars lst ctx)
+ | VariableDeclaration lst expr ->
+   let (c1, _) = compile_expr ctx expr in
+   (c1, add_vars lst ctx)
+ | Assignment lst expr ->
+   let (c1, ctx) = compile_expr ctx expr in
+   (* remove variables from stack *)
+   let (c2, ctx) = assign_vars ctx lst in
+   (c1 ++ c2, ctx)
+end
+
