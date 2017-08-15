@@ -105,6 +105,16 @@ let rec compile_statement ctx st = match st with
    let end_label = ctx.uniq in
    let (code2, ctx) = compile_cases <| ctx with uniq = ctx.uniq + 1 |> cases def end_label in
    (code ++ code2, ctx)
+ | ForLoop expr post body ->
+   let start_label = ctx.uniq in
+   let post_label = ctx.uniq+1 in
+   let end_label = ctx.uniq+2 in
+   let ctx = <| ctx with uniq=ctx.uniq+3 |> in
+   let (code_cond, ctx) = compile_expr ctx expr in
+   let (code_post, ctx) = compile_statement <| ctx with ptr = ctx.ptr - 1 |> post in
+   let (code_body, ctx) = compile_statement ctx body in
+   (Label start_label::code_cond ++ [N (Arith ISZERO); PushLabel end_label; N (Pc JUMPI)] ++
+    code_body ++ [Label post_label] ++ code_post ++ [PushLabel end_label; N (Pc JUMP)], ctx)
 end
 
 and compile_block ctx lst = match lst with
@@ -126,6 +136,8 @@ and compile_cases ctx cases def end_label = match (cases, def) with
    let (code_case, ctx) = compile_statement <| ctx with ptr = ctx.ptr - 1 |> st in
    let (code_rest, ctx) = compile_cases ctx cases def end_label in
    let next_label = ctx.uniq in
-   (code_lit ++ [N (Dup 1); N (Arith inst_EQ)] ++ code_case ++ [PushLabel end_label; N (Pc JUMP); Label next_label] ++ code_rest, <| ctx with uniq = ctx.uniq + 1 |>)
+   (code_lit ++ [N (Dup 1); N (Arith inst_EQ); PushLabel next_label; N (Pc JUMPI)] ++
+   code_case ++ [PushLabel end_label; N (Pc JUMP); Label next_label] ++ code_rest,
+   <| ctx with uniq = ctx.uniq + 1 |>)
 end
 
