@@ -55,9 +55,11 @@ let rec compile_expr ctx e = match e with
    match Map.lookup id ctx.funcs with
    | Nothing -> ([], ctx)
    | Just info ->
-     let (code, _) = compile_args ctx args in
-     let ret_label = ctx.uniq in
-     (code ++ [PushLabel ret_label; PushLabel info.func_label; N (Pc JUMP); Label ret_label], <| ctx with ptr = ctx.ptr + info.func_returns; uniq = ctx.uniq + 1 |>)
+     let (code, nctx) = compile_args <| ctx with ptr = ctx.ptr + info.func_returns |> args in
+     let ret_label = nctx.uniq in
+     let push_ret = genlist (fun _ -> N (Stack (PUSH_N [0]))) info.func_returns in
+     (push_ret ++ [PushLabel ret_label] ++ code ++ [PushLabel info.func_label; N (Pc JUMP); Label ret_label],
+      <| nctx with ptr = ctx.ptr + info.func_returns; uniq = nctx.uniq + 1 |>)
    end
  | Identifier id ->
    match Map.lookup id ctx.vars with
@@ -85,8 +87,8 @@ end
 let rec compile_statement ctx st = match st with
  | EmptyVariableDeclaration lst -> (List.map (fun _ -> N (Stack (PUSH_N [0]))) lst, add_vars lst ctx)
  | VariableDeclaration lst expr ->
-   let (c1, _) = compile_expr ctx expr in
-   (c1, add_vars lst ctx)
+   let (c1, nctx) = compile_expr ctx expr in
+   (c1, add_vars lst <| nctx with ptr = ctx.ptr |>)
  | Assignment lst expr ->
    let (c1, ctx) = compile_expr ctx expr in
    (* remove variables from stack *)
@@ -115,6 +117,18 @@ let rec compile_statement ctx st = match st with
    let (code_body, ctx) = compile_statement ctx body in
    (Label start_label::code_cond ++ [N (Arith ISZERO); PushLabel end_label; N (Pc JUMPI)] ++
     code_body ++ [Label post_label] ++ code_post ++ [PushLabel end_label; N (Pc JUMP)], ctx)
+ | FunctionDefinition id params rets st ->
+   (* Clear the context *)
+   let saved_ctx = ctx in
+   let skip_label = ctx.uniq in
+   let entry_label = ctx.uniq + 1 in
+   let funcs = Map.insert id <| func_label=entry_label; func_returns=List.length rets |> ctx.funcs in 
+   let ctx = <| ctx with ptr = 0; vars = Map.empty; uniq = ctx.uniq + 2; funcs = funcs |> in
+   let (fbody, ctx) = compile_statement (add_vars (rets ++ [(~1, CustomType 0)] ++ params) ctx) st in
+   let pop_args = List.map (fun _ -> N (Stack POP)) params in
+   let code = PushLabel skip_label :: N (Pc JUMP) :: fbody ++ pop_args ++ [N (Pc JUMPI); Label skip_label] in
+   (code, <| ctx with ptr = saved_ctx.ptr; vars = saved_ctx.vars |>)
+   
 end
 
 and compile_block ctx lst = match lst with
