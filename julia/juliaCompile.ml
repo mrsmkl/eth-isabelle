@@ -1,5 +1,6 @@
 
 open Julia
+open Compiler
 open Parsr
 open Lexr
 
@@ -36,12 +37,16 @@ let rec value_to_string = function
  | BuiltinV _ -> "builtin"
  | GBuiltinV _ -> "state builtin"
 
+let parse_file fname =
+  let lexbuf = Lexing.from_channel (open_in fname) in
+  parse_with_error lexbuf
+
 let builtins = [
   "addu256", AddU256;
 ]
 
-let init =
-  List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) (BuiltinV v) acc) Julia.initial builtins
+let print_state l =
+  Pmap.iter (fun k v -> prerr_endline (Z.to_string k ^ " -> " ^ value_to_string v)) l 
 
 let builtins2 = [
   "mstore", MStore;
@@ -56,27 +61,25 @@ let builtins2 = [
 ]
 
 let init =
-  List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) (GBuiltinV v) acc) init builtins2
+  List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) {func_label=BFunc v; func_returns=0} acc) (Pmap.empty compare) builtins
 
-let print_state l =
-  Pmap.iter (fun k v -> prerr_endline (Z.to_string k ^ " -> " ^ value_to_string v)) l 
+let init =
+  List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) {func_label=GFunc v; func_returns=0} acc) init builtins2
 
-let print_memory mem sz = ()
+let print_inst i =
+  prerr_endline ("Inst " ^ String.concat "," (List.map (fun x -> Z.format "%x" (Word8.word8ToNatural x)) (Evm.inst_code i)))
 
-let rec do_calc g l = function
- | st :: lst ->
-    let l, g = match Julia.eval_statement g l st 100 with
-     | Exit _ -> prerr_endline "<error>"; (l, g)
-     | Normal (g,l,_) -> print_state l; print_memory g.memory g.memory_size; prerr_endline "<step>"; (l, g) in
-    do_calc g l lst
- | [] -> prerr_endline "Exiting ..."
+let check_statement st =
+  let code, ctx = Compiler.compile_statement {empty_context with funcs=init} st in
+  let final_code = Compiler.handle_labels code in
+  prerr_endline "Compiled statement";
+  List.iter print_inst final_code
 
 let main () =
   if Array.length Sys.argv < 2 then prerr_endline "need filename" else
-  let lexbuf = Lexing.from_channel (open_in Sys.argv.(1)) in
-  let lst = parse_with_error lexbuf in
+  let lst = parse_file Sys.argv.(1) in
   let _ = prerr_endline "Finished parsing" in
-  do_calc {Julia.init_global with context=init; address=Z.of_int 1337} init lst
+  List.iter check_statement lst
 
 let _ =
   main ()

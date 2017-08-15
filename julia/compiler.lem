@@ -36,6 +36,8 @@ let empty_context = <|
   uniq = 0;
 |>
 
+let error = N (Unknown 0)
+
 let rec add_vars lst ctx = match lst with
  | [] -> ctx
  | (id,_) :: lst -> add_vars lst <| ctx with ptr = ctx.ptr + 1; vars = Map.insert id ctx.ptr ctx.vars |>
@@ -45,9 +47,9 @@ let rec assign_vars ctx lst = match lst with
  | [] -> ([], ctx)
  | id :: lst ->
    match Map.lookup id ctx.vars with
-   | Nothing -> ([], ctx)
+   | Nothing -> ([error], ctx)
    | Just idx ->
-     let diff = ctx.ptr - idx in
+     let diff = ctx.ptr - idx - 1 in
      let ctx = <| ctx with ptr = ctx.ptr - 1 |> in
      let (c1, ctx) = assign_vars ctx lst in
      (N (Swap (Word4.word4FromNat diff))::N (Stack POP)::c1, ctx)
@@ -58,7 +60,7 @@ let inc ctx = <| ctx with ptr = ctx.ptr + 1 |>
 
 let compile_builtin ctx bt = match bt with
  | AddU256 -> ([N (Arith ADD)], inc ctx)
- | _ -> ([], ctx)
+ | _ -> ([error], ctx)
 end
 
 let compile_gbuiltin ctx bt = match bt with
@@ -68,7 +70,7 @@ let compile_gbuiltin ctx bt = match bt with
  | SLoad -> ([N (Storage SLOAD)], inc ctx)
  | SStore -> ([N (Storage SSTORE)], ctx)
  | Call -> ([N (Misc CALL)], inc ctx)
- | _ -> ([], ctx)
+ | _ -> ([error], ctx)
 end
 
 val compile_expr : context -> expression -> list a_inst * context
@@ -85,20 +87,20 @@ let rec compile_expr ctx e = match e with
        (push_ret ++ [PushLabel ret_label] ++ code ++ [PushLabel label; N (Pc JUMP); Label ret_label],
         <| nctx with ptr = ctx.ptr + info.func_returns; uniq = nctx.uniq + 1 |>)
      | BFunc bt ->
-       let (code, ctx) = compile_args ctx args in
-       let (code2, ctx) = compile_builtin ctx bt in
-       (code ++ code2, ctx)
+       let (code, nctx) = compile_args ctx args in
+       let (code2, nctx) = compile_builtin <| nctx with ptr = ctx.ptr |> bt in
+       (code ++ code2, nctx)
      | GFunc bt ->
-       let (code, ctx) = compile_args ctx args in
-       let (code2, ctx) = compile_gbuiltin ctx bt in
-       (code ++ code2, ctx)
+       let (code, nctx) = compile_args ctx args in
+       let (code2, nctx) = compile_gbuiltin <| nctx with ptr = ctx.ptr |> bt in
+       (code ++ code2, nctx)
      end
    end
  | Identifier id ->
    match Map.lookup id ctx.vars with
-   | Nothing -> ([], ctx)
+   | Nothing -> ([error], ctx)
    | Just idx ->
-     let diff = ctx.ptr - idx in
+     let diff = ctx.ptr - idx - 1 in
      ([N (Dup (Word4.word4FromNat diff))], <| ctx with ptr = ctx.ptr + 1 |>)
    end
  | Literal FalseLiteral _ -> ([N (Stack (PUSH_N [0]))], <| ctx with ptr = ctx.ptr + 1 |>)
@@ -106,7 +108,7 @@ let rec compile_expr ctx e = match e with
  | Literal (NumberLiteral n) _ ->
     let bytes = word_rsplit256 (Word256.word256FromInteger n) in
     ([N (Stack (PUSH_N bytes))], <| ctx with ptr = ctx.ptr + 1 |>)
- | _ -> ([], ctx)
+ | _ -> ([error], ctx)
 end
 
 and compile_args ctx lst = match lst with
@@ -187,4 +189,22 @@ and compile_cases ctx cases def end_label = match (cases, def) with
    code_case ++ [PushLabel end_label; N (Pc JUMP); Label next_label] ++ code_rest,
    <| ctx with uniq = ctx.uniq + 1 |>)
 end
+
+let is_label l inst = match inst with
+ | Label l' -> l = l'
+ | _ -> false
+end
+
+let handle_labels code =
+  (* *)
+  let process i = match i with
+   | Label _ -> Pc JUMPDEST
+   | PushLabel l ->
+      match List.findIndex (is_label l) code with
+      | Nothing -> Unknown 0
+      | Just x -> Stack (PUSH_N (word_rsplit256 (Word256.word256FromNat x)))
+      end
+   | N a -> a end in
+  List.map process code
+
 
