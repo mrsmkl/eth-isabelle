@@ -49,7 +49,7 @@ let rec assign_vars ctx lst = match lst with
    match Map.lookup id ctx.vars with
    | Nothing -> ([error], ctx)
    | Just idx ->
-     let diff = ctx.ptr - idx - 1 in
+     let diff = ctx.ptr - idx - 2 in
      let ctx = <| ctx with ptr = ctx.ptr - 1 |> in
      let (c1, ctx) = assign_vars ctx lst in
      (N (Swap (Word4.word4FromNat diff))::N (Stack POP)::c1, ctx)
@@ -195,12 +195,23 @@ let is_label l inst = match inst with
  | _ -> false
 end
 
+let expand inst = match inst with
+ | N (Stack (PUSH_N lst)) -> inst :: List.map (fun b -> N (Unknown b)) lst
+ | a -> [a]
+end
+
+let expand2 inst = match inst with
+ | Stack (PUSH_N lst) -> inst :: List.map (fun b -> Unknown b) lst
+ | a -> [a]
+end
+
 let handle_labels code =
   (* *)
+  let code_exp = List.concat (List.map expand code) in
   let process i = match i with
    | Label _ -> Pc JUMPDEST
    | PushLabel l ->
-      match List.findIndex (is_label l) code with
+      match List.findIndex (is_label l) code_exp with
       | Nothing -> Unknown 0
       | Just x -> Stack (PUSH_N (word_rsplit256 (Word256.word256FromNat x)))
       end
