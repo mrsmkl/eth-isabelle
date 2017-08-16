@@ -1,0 +1,87 @@
+open import Pervasives
+open import List
+open import Map
+open import String
+open import Julia
+
+(* Check if statement is well typed, if it is then return typing context *)
+let rec check_statement (l:map id type_name) st = match st with
+ | EmptyVariableDeclaration lst -> Just (l union Map.fromList lst)
+ | VariableDeclaration lst init ->
+    match check_expression l init with
+    | Just type_lst ->
+      if length type_lst <> length lst then Nothing else
+      if List.any (fun (t1, (_,t2)) -> t1 <> t2) (zip type_lst lst) then Nothing else
+      Just (l union Map.fromList lst)
+    | Nothing -> Nothing
+    end
+ | Block [] -> Just l
+ | Block (a::lst) ->
+   match check_statement l a with
+   | Just l' ->
+     match check_statement l' (Block lst) with
+     | Just _ -> Just l
+     | Nothing -> Nothing
+     end
+   | Nothing -> Nothing
+   end
+ | Break -> Just l
+ | Continue -> Just l
+ | Expression e ->
+    match check_expression l e with
+    | Just _ -> Just l
+    | Nothing -> Nothing
+    end
+ | Assignment lst init ->
+    match check_expression l init with
+    | Nothing -> Nothing
+    | Just ret_types ->
+      if length ret_types <> length lst then Nothing else
+      let id_types = List.map (fun id -> check_expression l (Identifier id)) lst in
+      if List.any (fun (t, x) -> x <> Just [t]) (zip ret_types id_types) then Nothing else Just l
+    end
+ | ForLoopInit init cond post body -> check_statement l (Block (init ++ [ForLoop cond post body]))
+ | ForLoop cond post body ->
+    match (check_expression l cond, check_statement l post, check_statement l body) with
+    | (Just [Boolean], Just _, Just _) -> Just l
+    | _ -> Nothing
+    end
+ | Switch expr cases (Just def) ->
+    match check_statement l def with
+    | Just _ -> check_statement l (Switch expr cases Nothing)
+    | Nothing -> Nothing
+    end
+ | Switch expr cases Nothing ->
+    match check_expression l expr with
+    | Just [t] ->
+       if List.any (fun (_,t',_) -> t <> t') cases then Nothing else
+       check_statement l (Block (List.map (fun (_,_,st) -> st) cases))
+    | _ -> Nothing
+    end
+ | FunctionDefinition id params rets body ->
+    let l = Map.insert id (FType (List.map snd params) (List.map snd rets)) l in
+    let lf = l union (Map.fromList (params++rets)) in
+    match check_statement lf body with
+    | Nothing -> Nothing
+    | Just _ -> Just l
+    end
+end
+
+and check_expression (l:map id type_name) expr = match expr with
+ | Literal _ t -> Just [t]
+ | Identifier id ->
+    match Map.lookup id l with
+    | Nothing -> Nothing
+    | Just x -> Just [x]
+    end
+ | FunctionCall id lst ->
+    match Map.lookup id l with
+    | Just (FType params rets) ->
+      if length params <> length lst then Nothing else
+      let arg_types = List.map (fun x -> check_expression l x) lst in
+      if List.any (fun (t, arg) -> arg <> Just [t]) (zip params arg_types) then Nothing else
+      Just rets
+    | _ -> Nothing
+    end
+end
+

@@ -23,6 +23,7 @@ type type_name =
  | U64
  | U32
  | U8
+ | FType of list type_name * list type_name
 
 type literal_kind =
  | TrueLiteral

@@ -1,11 +1,11 @@
 
 // First builtin function
 {
-let a:s32 := 1:s32
-let b:s32 := 2:s32
+let a:u256 := 1:u256
+let b:u256 := 2:u256
 b := a
 a := b
-let c:s32
+let c:u256
 let d:u256 := addu256(a, b)
 d := addu256(a, b)
 d := addu256(a, b)

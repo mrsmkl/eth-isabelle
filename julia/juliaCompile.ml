@@ -66,14 +66,26 @@ let init =
 let init =
   List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) {func_label=GFunc v; func_returns=0} acc) init builtins2
 
+let tbuiltins = [
+  "addu256", FType ([U256; U256], [U256])
+]
+
+let type_map =
+  List.fold_left (fun acc (k,v) -> Pmap.add (JuliaUtil.string_to_Z k) v acc) (Pmap.empty compare) tbuiltins
+
 let print_inst i =
   prerr_endline ("Inst " ^ String.concat "," (List.map (fun x -> Z.format "%x" (Word8.word8ToNatural x)) (Evm.inst_code i)))
 
 let check_statement st =
+  let _ = match Typecheck.check_statement type_map st with
+   | None -> prerr_endline "Type error"
+   | Some _ -> () in
   let code, ctx = Compiler.compile_statement {empty_context with funcs=init} st in
   let final_code = Compiler.handle_labels code in
   prerr_endline "Compiled statement";
-  List.iter print_inst final_code
+  List.iter print_inst final_code;
+  prerr_endline "Going to run it now!!!";
+  
 
 let main () =
   if Array.length Sys.argv < 2 then prerr_endline "need filename" else
