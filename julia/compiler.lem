@@ -248,4 +248,18 @@ let handle_labels code =
    | N a -> a end in
   List.map process code
 
+let make_program final_code =
+  let code_exp = List.concat (List.map expand2 final_code) in
+  let codemap x =
+    if x < 0 then Nothing else
+    List.index code_exp (natFromInteger x) in
+  <| program_length = integerFromNat (List.length final_code);
+     program_content = codemap |>
+
+let compile_program ctx st =
+  let st = elim_forloop_init st in
+  let (code, _) = compile_statement ctx st in
+  make_program (handle_labels code)
+
+
 
