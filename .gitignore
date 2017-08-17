@@ -85,3 +85,7 @@ simplewallet/
 tester/coverage/
 tester/bisect*.out
 *.marks
+lem/Compiler.thy
+lem/Compiler*.thy
+lem/Julia*.thy
+lem/Typecheck*.thy

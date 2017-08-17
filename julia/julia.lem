@@ -5,6 +5,7 @@ open import Pervasives
 open import List
 open import Map
 open import String
+open import {isabelle} `LemExtraDefs`
 
 (** Syntax *)
 
@@ -211,6 +212,7 @@ let rec get_byte_aux n i = match n with
  | 0 -> i mod two8
  | n+1 -> get_byte_aux n (i div two8)
 end
+declare termination_argument get_byte_aux = automatic
 
 val get_byte : integer -> integer -> integer
 let get_byte n i = get_byte_aux (natFromInteger n) i
@@ -224,6 +226,7 @@ let rec memory_integer mem addr n = match n with
    | _ -> IntV 0
    end
 end
+declare termination_argument memory_integer = automatic
 
 val memory_bytes : (integer -> value) -> integer -> nat -> list integer
 let rec memory_bytes mem addr n = match n with
@@ -234,12 +237,14 @@ let rec memory_bytes mem addr n = match n with
    | _ -> []
    end
 end
+declare termination_argument memory_bytes = automatic
 
 val memory_values : (integer -> value) -> integer -> nat -> list value
 let rec memory_values mem addr n = match n with
  | 0 -> []
  | n+1 -> mem addr :: memory_values mem (addr+1) n
 end
+declare termination_argument memory_values = automatic
 
 val roundup : integer -> integer -> integer
 let roundup i align = ((i + align - 1) div align) * align
@@ -494,4 +499,7 @@ and eval_expression g (l:map id value) expr n =
     end
 end
 end
+
+declare termination_argument eval_statement = automatic
+declare termination_argument eval_expression = automatic
 

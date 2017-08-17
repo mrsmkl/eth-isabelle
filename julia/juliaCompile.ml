@@ -143,6 +143,7 @@ let empty_env = {
 
 
 let check_statement st =
+  let st = Compiler.elim_forloop_init st in
   let _ = match Typecheck.check_statement type_map st with
    | None -> prerr_endline "Type error"
    | Some _ -> () in

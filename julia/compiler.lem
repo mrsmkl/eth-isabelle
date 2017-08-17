@@ -42,6 +42,7 @@ let rec add_vars lst ctx = match lst with
  | [] -> ctx
  | (id,_) :: lst -> add_vars lst <| ctx with ptr = ctx.ptr + 1; vars = Map.insert id ctx.ptr ctx.vars |>
 end
+declare termination_argument add_vars = automatic
 
 let rec assign_vars ctx lst = match lst with
  | [] -> ([], ctx)
@@ -55,6 +56,7 @@ let rec assign_vars ctx lst = match lst with
      (N (Swap (Word4.word4FromNat diff))::N (Stack POP)::c1, ctx)
    end
 end
+declare termination_argument assign_vars = automatic
 
 let inc ctx = <| ctx with ptr = ctx.ptr + 1 |>
 
@@ -81,18 +83,18 @@ let rec compile_expr ctx e = match e with
    | Just info ->
      match info.func_label with
      | Func label ->
-       let (code, nctx) = compile_args <| ctx with ptr = ctx.ptr + info.func_returns |> args in
+       let (code, nctx) = compile_args (<| ctx with ptr = ctx.ptr + info.func_returns |>) args in
        let ret_label = nctx.uniq in
        let push_ret = genlist (fun _ -> N (Stack (PUSH_N [0]))) info.func_returns in
        (push_ret ++ [PushLabel ret_label] ++ code ++ [PushLabel label; N (Pc JUMP); Label ret_label],
         <| nctx with ptr = ctx.ptr + info.func_returns; uniq = nctx.uniq + 1 |>)
      | BFunc bt ->
        let (code, nctx) = compile_args ctx args in
-       let (code2, nctx) = compile_builtin <| nctx with ptr = ctx.ptr |> bt in
+       let (code2, nctx) = compile_builtin (<| nctx with ptr = ctx.ptr |>) bt in
        (code ++ code2, nctx)
      | GFunc bt ->
        let (code, nctx) = compile_args ctx args in
-       let (code2, nctx) = compile_gbuiltin <| nctx with ptr = ctx.ptr |> bt in
+       let (code2, nctx) = compile_gbuiltin (<| nctx with ptr = ctx.ptr |>) bt in
        (code ++ code2, nctx)
      end
    end
@@ -106,7 +108,7 @@ let rec compile_expr ctx e = match e with
  | Literal FalseLiteral _ -> ([N (Stack (PUSH_N [0]))], <| ctx with ptr = ctx.ptr + 1 |>)
  | Literal TrueLiteral _ -> ([N (Stack (PUSH_N [1]))], <| ctx with ptr = ctx.ptr + 1 |>)
  | Literal (NumberLiteral n) _ ->
-    let bytes = word_rsplit256 (Word256.word256FromInteger n) in
+    let bytes = word_rsplit256 (Word256.word256FromInteger n : Word256.word256) in
     ([N (Stack (PUSH_N bytes))], <| ctx with ptr = ctx.ptr + 1 |>)
  | _ -> ([error], ctx)
 end
@@ -115,15 +117,31 @@ and compile_args ctx lst = match lst with
  | [] -> ([], ctx)
  | expr :: lst ->
     let (e_code, ctx) = compile_expr ctx expr in
-    let (code, ctx) = compile_args <| ctx with ptr = ctx.ptr+1 |> lst in
+    let (code, ctx) = compile_args (<| ctx with ptr = ctx.ptr+1 |>) lst in
     (e_code ++ code, ctx)
 end
+
+declare termination_argument compile_expr = automatic
+declare termination_argument compile_args = automatic
+
+let rec elim_forloop_init st = match st with
+ | Block lst -> Block (List.map elim_forloop_init lst)
+ | Switch expr cases def ->
+    Switch expr (List.map (fun (a,b,st) -> (a,b,elim_forloop_init st)) cases) (Maybe.map elim_forloop_init def)
+ | ForLoop cond post body -> ForLoop cond (elim_forloop_init post) (elim_forloop_init body)
+ | ForLoopInit init cond post body ->
+    Block (init ++ [ForLoop cond (elim_forloop_init post) (elim_forloop_init body)])
+ | FunctionDefinition id params rets st ->
+   FunctionDefinition id params rets (elim_forloop_init st)
+ | a -> a
+end
+declare termination_argument elim_forloop_init = automatic
 
 let rec compile_statement ctx st = match st with
  | EmptyVariableDeclaration lst -> (List.map (fun _ -> N (Stack (PUSH_N [0]))) lst, add_vars lst ctx)
  | VariableDeclaration lst expr ->
    let (c1, nctx) = compile_expr ctx expr in
-   (c1, add_vars lst <| nctx with ptr = ctx.ptr |>)
+   (c1, add_vars lst (<| nctx with ptr = ctx.ptr |>))
  | Assignment lst expr ->
    let (c1, ctx) = compile_expr ctx expr in
    (* remove variables from stack *)
@@ -135,12 +153,20 @@ let rec compile_statement ctx st = match st with
  | Expression expr ->
    let (code, nctx) = compile_expr ctx expr in
    (code ++ genlist (fun _ -> N (Stack POP)) (nctx.ptr - ctx.ptr), <| nctx with ptr = ctx.ptr |>)
+ (*
  | ForLoopInit init cond post body ->
    compile_statement ctx (Block (init ++ [ForLoop cond post body]))
+ *)
  | Switch expr cases def ->
    let (code, ctx) = compile_expr ctx expr in
+   let (def_code, ctx) = match def with
+     | Just a ->
+       let (code, ctx) = compile_statement ctx a in
+       (Just code, ctx)
+     | Nothing -> (Nothing, ctx)
+     end in
    let end_label = ctx.uniq in
-   let (code2, ctx) = compile_cases <| ctx with uniq = ctx.uniq + 1 |> cases def end_label in
+   let (code2, ctx) = compile_cases (<| ctx with uniq = ctx.uniq + 1 |>) cases def_code end_label in
    (code ++ code2, ctx)
  | ForLoop expr post body ->
    let start_label = ctx.uniq in
@@ -148,7 +174,7 @@ let rec compile_statement ctx st = match st with
    let end_label = ctx.uniq+2 in
    let ctx = <| ctx with uniq=ctx.uniq+3 |> in
    let (code_cond, ctx) = compile_expr ctx expr in
-   let (code_post, ctx) = compile_statement <| ctx with ptr = ctx.ptr - 1 |> post in
+   let (code_post, ctx) = compile_statement (<| ctx with ptr = ctx.ptr - 1 |>) post in
    let (code_body, ctx) = compile_statement ctx body in
    (Label start_label::code_cond ++ [N (Arith ISZERO); PushLabel end_label; N (Pc JUMPI)] ++
     code_body ++ [Label post_label] ++ code_post ++ [PushLabel end_label; N (Pc JUMP)], ctx)
@@ -157,7 +183,7 @@ let rec compile_statement ctx st = match st with
    let saved_ctx = ctx in
    let skip_label = ctx.uniq in
    let entry_label = ctx.uniq + 1 in
-   let funcs = Map.insert id <| func_label=Func entry_label; func_returns=List.length rets |> ctx.funcs in 
+   let funcs = Map.insert id (<| func_label=Func entry_label; func_returns=List.length rets |>) ctx.funcs in 
    let ctx = <| ctx with ptr = 0; vars = Map.empty; uniq = ctx.uniq + 2; funcs = funcs |> in
    let (fbody, ctx) = compile_statement (add_vars (rets ++ [(~1, CustomType 0)] ++ params) ctx) st in
    let pop_args = List.map (fun _ -> N (Stack POP)) params in
@@ -177,18 +203,22 @@ end
 and compile_cases ctx cases def end_label = match (cases, def) with
  | ([], Nothing) -> ([N (Stack POP); Label end_label], <| ctx with ptr = ctx.ptr-1 |> )
  | ([], Just def) ->
-   let (code, ctx) = compile_statement ctx def in
-   (code ++ [N (Stack POP); Label end_label], <| ctx with ptr = ctx.ptr-1 |>)
+   (* let (code, ctx) = compile_statement ctx def in *)
+   (def ++ [N (Stack POP); Label end_label], <| ctx with ptr = ctx.ptr-1 |>)
  | ((lit, t, st) :: cases, _) ->
    let ctx = <| ctx with ptr = ctx.ptr+1 |> in
    let (code_lit, ctx) = compile_expr ctx (Literal lit t) in
-   let (code_case, ctx) = compile_statement <| ctx with ptr = ctx.ptr - 1 |> st in
+   let (code_case, ctx) = compile_statement (<| ctx with ptr = ctx.ptr - 1 |>) st in
    let (code_rest, ctx) = compile_cases ctx cases def end_label in
    let next_label = ctx.uniq in
    (code_lit ++ [N (Dup 1); N (Arith inst_EQ); PushLabel next_label; N (Pc JUMPI)] ++
    code_case ++ [PushLabel end_label; N (Pc JUMP); Label next_label] ++ code_rest,
    <| ctx with uniq = ctx.uniq + 1 |>)
 end
+
+declare termination_argument compile_statement = automatic
+declare termination_argument compile_block = automatic
+declare termination_argument compile_cases = automatic
 
 let is_label l inst = match inst with
  | Label l' -> l = l'

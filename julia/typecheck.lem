@@ -40,7 +40,9 @@ let rec check_statement (l:map id type_name) st = match st with
       let id_types = List.map (fun id -> check_expression l (Identifier id)) lst in
       if List.any (fun (t, x) -> x <> Just [t]) (zip ret_types id_types) then Nothing else Just l
     end
+ (*
  | ForLoopInit init cond post body -> check_statement l (Block (init ++ [ForLoop cond post body]))
+ *)
  | ForLoop cond post body ->
     match (check_expression l cond, check_statement l post, check_statement l body) with
     | (Just [Boolean], Just _, Just _) -> Just l
@@ -48,14 +50,20 @@ let rec check_statement (l:map id type_name) st = match st with
     end
  | Switch expr cases (Just def) ->
     match check_statement l def with
-    | Just _ -> check_statement l (Switch expr cases Nothing)
+    | Just _ ->
+      match check_expression l expr with
+      | Just [t] ->
+         if List.any (fun (_,t',st) -> t <> t' || check_statement l st = Nothing) cases then Nothing else
+         Just l
+      | _ -> Nothing
+      end
     | Nothing -> Nothing
     end
  | Switch expr cases Nothing ->
     match check_expression l expr with
     | Just [t] ->
-       if List.any (fun (_,t',_) -> t <> t') cases then Nothing else
-       check_statement l (Block (List.map (fun (_,_,st) -> st) cases))
+       if List.any (fun (_,t',st) -> t <> t' || check_statement l st = Nothing) cases then Nothing else
+       Just l
     | _ -> Nothing
     end
  | FunctionDefinition id params rets body ->
@@ -84,4 +92,8 @@ and check_expression (l:map id type_name) expr = match expr with
     | _ -> Nothing
     end
 end
+
+
+declare termination_argument check_statement = automatic
+declare termination_argument check_expression = automatic
 
