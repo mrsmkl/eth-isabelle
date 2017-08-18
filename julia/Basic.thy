@@ -45,4 +45,13 @@ definition eq_ccontext :: "state \<Rightarrow> constant_ctx \<Rightarrow> bool" 
      None \<Rightarrow> False
    |  Some st \<Rightarrow> cctx_program b = compile_program empty_context st ) )"
 
+fun eq_stack :: "state * (int, value0) map \<Rightarrow> variable_ctx * context0 \<Rightarrow> bool" where
+"eq_stack (a,vrs) (b,info) = (\<forall>x. (case (vrs x, vars info x) of
+    (None, None) \<Rightarrow> True
+  | (Some v, Some pr) \<Rightarrow>
+      let sh = int (length (vctx_stack b)) in
+      let pos = int pr + sh - int (ptr info) in
+      pos \<ge> 0 \<and> IntV (uint (vctx_stack b ! nat pos)) = word_value v
+  | _ \<Rightarrow> False ))"
+
 end
