@@ -130,6 +130,7 @@ let rec elim_forloop_init st = match st with
     Switch expr (List.map (fun (a,b,st) -> (a,b,elim_forloop_init st)) cases) (Maybe.map elim_forloop_init def)
  | ForLoop cond post body -> ForLoop cond (elim_forloop_init post) (elim_forloop_init body)
  | ForLoopInit init cond post body ->
+    let init = List.map elim_forloop_init init in
     Block (init ++ [ForLoop cond (elim_forloop_init post) (elim_forloop_init body)])
  | FunctionDefinition id params rets st ->
    FunctionDefinition id params rets (elim_forloop_init st)

@@ -54,4 +54,67 @@ fun eq_stack :: "state * (int, value0) map \<Rightarrow> variable_ctx * context0
       pos \<ge> 0 \<and> IntV (uint (vctx_stack b ! nat pos)) = word_value v
   | _ \<Rightarrow> False ))"
 
+fun sub_expressions :: "expression \<Rightarrow> expression list" where
+  "sub_expressions (FunctionCall _ lst) = lst"
+| "sub_expressions e = []"
+
+fun sub_expressions_tr :: "expression \<Rightarrow> expression list" where
+ "sub_expressions_tr e = [e] @ (case e of
+    FunctionCall _ lst \<Rightarrow> List.concat (map (%e. sub_expressions e) lst)
+  | _ \<Rightarrow> [])"
+
+fun option_to_list :: "'a option \<Rightarrow> 'a list" where
+"option_to_list e = (case e of None \<Rightarrow> [] | Some x \<Rightarrow> [x])"
+
+fun sub_statements :: "statement \<Rightarrow> statement list" where
+ "sub_statements st = [st] @ (case st of
+    Block lst \<Rightarrow> List.concat (map (%st. sub_statements st) lst)
+  | Switch _ lst def \<Rightarrow>
+      let lst = option_to_list def @ map (%el. let (_,_,st) = el in st) lst in
+      List.concat (map sub_statements lst)
+  | ForLoop _ st1 st2 \<Rightarrow> sub_statements st1 @ sub_statements st2
+  | ForLoopInit lst _ st1 st2 \<Rightarrow> List.concat (map sub_statements (st1#st2#lst))
+  | FunctionDefinition _ _ _ st \<Rightarrow> sub_statements st
+  | _ \<Rightarrow> [])"
+
+(* subexpressions for statements *)
+fun statement_expressions :: "statement \<Rightarrow> expression list" where
+  "statement_expressions (VariableDeclaration _ ex) = [ex]"
+| "statement_expressions (Assignment _ ex) = [ex]"
+| "statement_expressions (Expression ex) = [ex]"
+| "statement_expressions (ForLoop ex _ _) = [ex]"
+| "statement_expressions (ForLoopInit _ ex _ _) = [ex]"
+| "statement_expressions (Switch e lst _) =
+      e # map (%el. let (l,t,_) = el in Literal l t) lst"
+| "statement_expressions _ = []"
+
+declare sub_statements.simps [simp del]
+
+lemma aux1 :
+"set (sub_statements (Block (lst @ [ForLoop e st1 st2]))) =
+ set (List.concat (map sub_statements lst)) \<union> set (sub_statements st1)
+ \<union> set (sub_statements st2) \<union>
+   {Block (lst @ [ForLoop e st1 st2]), ForLoop e st1 st2}"
+by (auto simp add: sub_statements.simps)
+
+lemma for_loop_init_elim : "ForLoopInit a b c d \<notin> set (sub_statements (elim_forloop_init st))"
+apply (induction st arbitrary: a b c d)
+apply (auto simp:elim_forloop_init.simps)
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+defer
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+defer
+apply (simp add: sub_statements.simps)
+apply (simp add: sub_statements.simps)
+apply (case_tac x3)
+apply (auto simp add: sub_statements.simps)[1]
+apply (auto simp add: sub_statements.simps)[1]
+apply (auto simp add: aux1)[1]
+done
+
 end
