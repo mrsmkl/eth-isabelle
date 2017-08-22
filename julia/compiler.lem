@@ -236,7 +236,7 @@ let expand2 inst = match inst with
  | a -> [a]
 end
 
-let handle_labels code =
+let handle_labels offset code =
   (* *)
   let code_exp = List.concat (List.map expand code) in
   let process i = match i with
@@ -244,7 +244,7 @@ let handle_labels code =
    | PushLabel l ->
       match List.findIndex (is_label l) code_exp with
       | Nothing -> Unknown 0
-      | Just x -> Stack (PUSH_N (word_rsplit256 (Word256.word256FromNat x)))
+      | Just x -> Stack (PUSH_N (word_rsplit256 (Word256.word256FromNat (x+offset))))
       end
    | N a -> a end in
   List.map process code
@@ -260,7 +260,10 @@ let make_program final_code =
 let compile_program ctx st =
   let st = elim_forloop_init st in
   let (code, _) = compile_statement ctx st in
-  make_program (handle_labels code)
+  make_program (handle_labels 0 code)
 
-
+let compile_program_to ctx offset st =
+  let st = elim_forloop_init st in
+  let (code, _) = compile_statement ctx st in
+  make_program (handle_labels offset code)
 

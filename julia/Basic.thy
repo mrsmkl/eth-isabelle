@@ -1,5 +1,5 @@
 theory Basic
-  imports "../lem/Compiler"
+  imports "../lem/Compiler" "../Hoare/Hoare"
 begin
 
 (* How to tell if Julia and Evm contexts are equal *)
@@ -34,14 +34,14 @@ definition eq_storage :: "(int \<Rightarrow> value0) \<Rightarrow> storage \<Rig
 definition eq_context :: "state \<Rightarrow> variable_ctx \<Rightarrow> bool" where
 "eq_context a b = (
   memory_size a = vctx_memory_usage b \<and>
-  eq_memory (memory a) (vctx_memory b) \<and>
-  eq_storage (storage (accounts a (address a))) (vctx_storage b)
+  eq_memory (Julia.memory a) (vctx_memory b) \<and>
+  eq_storage (Julia.storage (accounts a (address a))) (vctx_storage b)
 )"
 
 definition eq_ccontext :: "state \<Rightarrow> constant_ctx \<Rightarrow> bool" where
 "eq_ccontext a b = (
    address a = uint (cctx_this b) \<and>
-   ( case code (accounts a (address a)) of
+   ( case Julia.code (accounts a (address a)) of
      None \<Rightarrow> False
    |  Some st \<Rightarrow> cctx_program b = compile_program empty_context st ) )"
 
@@ -117,4 +117,88 @@ apply (auto simp add: sub_statements.simps)[1]
 apply (auto simp add: aux1)[1]
 done
 
+(* perhaps check some issues independently *)
+
+definition step :: "network \<Rightarrow> constant_ctx \<Rightarrow> variable_ctx \<Rightarrow> instruction_result" where
+"step net cctx vctx = next_state (%a. ()) cctx net (InstructionContinue vctx)"
+
+lemma const_gen_list : "set (genlist (\<lambda>_. a) n) \<subseteq> {a}"
+by (induction n, auto)
+
+lemma const_gen_list1 : "set (genlist (\<lambda>_. a) 0) = {}"
+by (auto)
+
+lemma const_gen_list2 : "set (genlist (\<lambda>_. a) (Suc n)) = {a}"
+by (induction n, auto)
+
+lemma no_jumps :
+  "(pcode, c2) = compile_statement c1 st \<Longrightarrow>
+   N (Pc JUMP) \<notin> set pcode"
+apply (induction st arbitrary: pcode c2 c1)
+apply (auto simp add: compile_statement.simps)
+(* Blocks*)
+subgoal for x pcode c2 c1
+apply (case_tac "compile_block c1 x", simp)
+apply auto
+apply (induction x arbitrary: pcode c2 c1)
+  apply auto[1]
+apply auto
+apply (case_tac "compile_statement c1 a", simp)
+apply (case_tac "compile_block ba x", simp)
+apply auto
+  apply metis
+  apply blast
+apply (case_tac "ptr b - ptr c1")
+apply simp
+subgoal for a b nat
+using const_gen_list2 [of "N (Stack POP)" "nat"]
+  by auto
+done
+(* others should be similar, pretty tedious *)
+oops
+
+lemma no_jumpis :
+  "(pcode, c2) = compile_statement c1 st \<Longrightarrow>
+   N (Pc JUMPI) \<notin> set pcode"
+oops
+
+lemma no_getpc :
+  "(pcode, c2) = compile_statement c1 st \<Longrightarrow>
+   N (Pc PC) \<notin> set pcode"
+oops
+
+(** need to be more precise, where in the program we are *)
+lemma relocation :
+   "cctx_program cctx1 = compile_program_to c off st \<Longrightarrow>
+    cctx_program cctx2 = compile_program_to c (off+n) st \<Longrightarrow>
+    step net cctx1 vctx = step net cctx2 (vctx\<lparr> vctx_pc := vctx_pc vctx + int n  \<rparr>)"
+oops
+
+(* The stack will be unchanged, except there will be breaks ... *)
+
+definition will_fail :: "network \<Rightarrow> constant_ctx \<Rightarrow> variable_ctx \<Rightarrow> bool" where
+"will_fail net cctx vctx =
+ (\<exists>k stopper a b c. program_sem stopper cctx k net (InstructionContinue vctx) = InstructionToEnvironment a c b)"
+
+definition compiled_at :: "context0 \<Rightarrow> constant_ctx \<Rightarrow> nat \<Rightarrow> statement \<Rightarrow> context0 \<Rightarrow> bool" where
+"compiled_at c cctx offset st c2 = (
+   let prog = program_content (cctx_program cctx) in
+   let st = elim_forloop_init st in
+   let (code, c2') = compile_statement c st in
+   let code = handle_labels offset code in
+   c2' = c2 \<and> (\<forall>i. i < length code \<longrightarrow> prog (int (i+offset)) = Some (code!i)))"
+
+(* ptr is actually the stack limit? *)
+lemma correctness :
+  "compiled_at c cctx off st c2 \<Longrightarrow>
+   eq_context jst vctx \<Longrightarrow>
+   eq_stack (jst,jst_map) (vctx,compile_map) \<Longrightarrow>
+   will_fail net cctx vctx \<or>
+   (\<exists>k m. program_sem stopper cctx k net (InstructionContinue vctx) = InstructionContinue v2 \<and>
+   eval_statement jst jst_map st m = Normal (jst2, jst_map2, mode) \<and>
+   eq_stack (jst2,jst_map2) (v2,compile_map2) \<and> eq_context jst2 v2 \<and>
+   drop (ptr c) (vctx_stack vctx) = drop (ptr c2) (vctx_stack v2))"
+oops
+
 end
+

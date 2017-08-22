@@ -148,7 +148,7 @@ let check_statement st =
    | None -> prerr_endline "Type error"
    | Some _ -> () in
   let code, ctx = Compiler.compile_statement {empty_context with funcs=init} st in
-  let final_code = Compiler.handle_labels code in
+  let final_code = Compiler.handle_labels 0 code in
   prerr_endline "Compiled statement";
   List.iter print_inst final_code;
   prerr_endline "Going to run it now!!!";
