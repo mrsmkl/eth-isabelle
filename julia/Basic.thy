@@ -200,5 +200,47 @@ lemma correctness :
    drop (ptr c) (vctx_stack vctx) = drop (ptr c2) (vctx_stack v2))"
 oops
 
+definition any_failure :: "failure_reason set" where
+"any_failure = {x | x. True}"
+
+definition code_set :: "context0 \<Rightarrow> int \<Rightarrow> statement \<Rightarrow> (int \<times> inst) set" where
+"code_set c offset st = (
+   let st = elim_forloop_init st in
+   let (code, c2') = compile_statement c st in
+   let code = handle_labels (nat offset) code in
+   { (int loc + offset, inst) | loc inst. code!loc = inst} )"
+
+definition code_length :: "context0 \<Rightarrow> statement \<Rightarrow> int" where
+"code_length c st = int (length (fst (compile_statement c st)))"
+
+lemma code_length : "code_length c1 st = code_length c2 st"
+oops
+
+definition julia_storage :: "state \<Rightarrow> state_element set_pred" where
+"julia_storage jst s = (
+   let stor = Julia.storage (current jst) in
+   s = { StorageElm (i,v) | i v. word_value (stor (uint i)) = IntV (uint v)})"
+
+definition julia_memory :: "state \<Rightarrow> state_element set_pred" where
+"julia_memory jst s = (
+   let stor = Julia.memory jst in
+   s = { MemoryElm (i,v) | i v. byte_value (stor (uint i)) = IntV (uint v)})"
+
+definition julia_stack :: "(int, value0) map \<Rightarrow> nat \<Rightarrow> state_element set_pred" where
+"julia_stack vrs h s = (
+   s = {StackElm (h, v) | h v t. Some t = vrs (int h) \<and> IntV (uint v) = word_value t})"
+
+definition statement_compiles :: "network \<Rightarrow> context0 \<Rightarrow> statement \<Rightarrow> int \<Rightarrow> nat \<Rightarrow> bool" where
+"statement_compiles net julia_context st pos n =
+  (\<forall>jst julia_vars julia_vars mode jst2 julia_vars2 h h2.
+  Normal (jst2, julia_vars2, mode) = eval_statement jst julia_vars st n \<longrightarrow>
+  triple net any_failure
+      (program_counter pos ** julia_storage jst ** julia_memory jst ** julia_stack julia_vars h **
+       stack_height h)
+      (code_set julia_context pos st)
+      (program_counter (pos+code_length julia_context st) **
+       julia_storage jst2 ** julia_memory jst2 ** julia_stack julia_vars2 h2 **
+       stack_height h2) )"
+
 end
 
